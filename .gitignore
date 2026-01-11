@@ -1,0 +1,10 @@
+*.test
+*.log
+*.out
+*.txt
+*.py
+.env
+go.work
+go.work.sum
+fetch/
+logs/
