@@ -8,13 +8,13 @@ import (
 )
 
 type Menu struct {
-	// Reply Main
+	// Reply Main (Нижняя клавиатура)
 	ReplyMain  *tele.ReplyMarkup
 	BtnTargets tele.Btn
 	BtnWho     tele.Btn
 	BtnHome    tele.Btn
 
-	// Inline Main (Navigation)
+	// Inline Main (Меню в сообщении)
 	InlineMain    *tele.ReplyMarkup
 	BtnHomeInline tele.Btn
 
@@ -34,10 +34,10 @@ func NewMenu() *Menu {
 	replyMain := &tele.ReplyMarkup{ResizeKeyboard: true}
 	inlineMain := &tele.ReplyMarkup{}
 
-	// Reply Buttons
-	btnTargets := replyMain.Text("📋 Targets")
-	btnWho := replyMain.Text("👤 WhoAmI")
-	btnHome := replyMain.Text("🏠 Главная")
+	// Reply Buttons (Названия синхронизированы с Inline)
+	btnTargets := replyMain.Text("📋 Управление подключениями")
+	btnWho := replyMain.Text("👤 Информация")
+	btnHome := replyMain.Text("🏠 В начало")
 
 	replyMain.Reply(
 		replyMain.Row(btnTargets, btnWho),
@@ -45,15 +45,14 @@ func NewMenu() *Menu {
 	)
 
 	// Inline Buttons
-	// Unique ID (второй аргумент) важен для статических кнопок, которые мы проверяем через switch unique
-	btnHomeInline := inlineMain.Data("🏠 Домой", "home")
+	btnHomeInline := inlineMain.Data("🏠 В начало", "home")
 
-	btnAddTarget := inlineMain.Data("➕ Add New", "add_target")
-	btnBack := inlineMain.Data("🔙 Back to List", "back_to_list")
-	btnCancelWizard := inlineMain.Data("🚫 Cancel", "cancel_wizard")
+	btnAddTarget := inlineMain.Data("➕ Добавить", "add_target")
+	btnBack := inlineMain.Data("🔙 Назад", "back_to_list")
+	btnCancelWizard := inlineMain.Data("🚫 Отмена", "cancel_wizard")
 
-	btnCheckMsg := inlineMain.Data("📨 Check Message", "check_msg")
-	btnDelete := inlineMain.Data("🗑 Delete", "del_target")
+	btnCheckMsg := inlineMain.Data("📨 Проверить", "check_msg")
+	btnDelete := inlineMain.Data("🗑 Удалить", "del_target")
 
 	return &Menu{
 		ReplyMain:       replyMain,
@@ -74,8 +73,8 @@ func NewMenu() *Menu {
 func (m *Menu) BuildMainMenu() *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 
-	// ИСПРАВЛЕНИЕ: Используем 'targets_list' вместо 'back_to_list' для логирования
-	btnTargets := markup.Data("📋 Управление целями", "targets_list")
+	// Используем те же названия, что и в Reply
+	btnTargets := markup.Data("📋 Управление подключениями", "targets_list")
 	btnWho := markup.Data("👤 Информация", "who_btn")
 
 	markup.Inline(
@@ -98,6 +97,7 @@ func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.Reply
 	var rows []tele.Row
 
 	for _, t := range targets {
+		// Отображаем имя цели в кнопке
 		btn := markup.Data(fmt.Sprintf("🔩 %s", t.Name), fmt.Sprintf("view_target:%d", t.ID))
 		rows = append(rows, markup.Row(btn))
 	}
@@ -112,8 +112,8 @@ func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.Reply
 func (m *Menu) BuildTargetView(targetID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 
-	btnCheck := markup.Data("📨 Check Message", fmt.Sprintf("check_msg:%d", targetID))
-	btnDel := markup.Data("🗑 Delete", fmt.Sprintf("del_target:%d", targetID))
+	btnCheck := markup.Data("📨 Последнее сообщение", fmt.Sprintf("check_msg:%d", targetID))
+	btnDel := markup.Data("🗑 Удалить подключение", fmt.Sprintf("del_target:%d", targetID))
 
 	markup.Inline(
 		markup.Row(btnCheck),

@@ -27,12 +27,19 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 	}
 
 	b.Use(middleware.Recover())
-
-	// ЗАМЕНА: Вместо middleware.Logger() используем свой
 	b.Use(LogMiddleware())
 
-	// Регистрируем все хендлеры через роутер
+	// Регистрируем хендлеры
 	router.Register(b)
+
+	// Устанавливаем команды для меню (удалит старые ping/time)
+	err = b.SetCommands([]tele.Command{
+		{Text: "start", Description: "Главное меню"},
+		{Text: "whoami", Description: "Профиль пользователя"},
+	})
+	if err != nil {
+		log.Printf("⚠️ Не удалось обновить список команд: %v", err)
+	}
 
 	return &Bot{
 		Bot:    b,

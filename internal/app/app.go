@@ -29,10 +29,12 @@ func New() *fx.App {
 			usecases.NewSettingsUsecase,
 			usecases.NewMonitoringUsecase,
 
-			// Telegram Handlers
-			telegram.NewBot,
+			// Telegram Components
 			telegram.NewMenu,
+			telegram.NewCommandHandler,  // Регистрируем CommandHandler
+			telegram.NewCallbackHandler, // Регистрируем CallbackHandler
 			telegram.NewRouter,
+			telegram.NewBot,
 		),
 		fx.Invoke(
 			startBot,
