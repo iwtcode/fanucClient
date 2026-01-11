@@ -19,20 +19,13 @@ func NewMonitoringUsecase(repo interfaces.UserRepository, kafkaSvc interfaces.Ka
 	}
 }
 
-func (u *monitoringUsecase) FetchLastKafkaMessage(ctx context.Context, userID int64) (string, error) {
-	user, err := u.repo.GetByID(userID)
+func (u *monitoringUsecase) FetchLastKafkaMessage(ctx context.Context, targetID uint) (string, error) {
+	target, err := u.repo.GetTargetByID(targetID)
 	if err != nil {
-		return "", fmt.Errorf("database error: %w", err)
-	}
-	if user == nil {
-		return "", fmt.Errorf("user not found")
+		return "", fmt.Errorf("target not found: %w", err)
 	}
 
-	if user.KafkaBroker == "" || user.KafkaTopic == "" {
-		return "⚠️ Please configure Kafka Broker and Topic in settings first.", nil
-	}
-
-	msg, err := u.kafkaSvc.GetLastMessage(ctx, user.KafkaBroker, user.KafkaTopic)
+	msg, err := u.kafkaSvc.GetLastMessage(ctx, target.Broker, target.Topic, target.Key)
 	if err != nil {
 		return "", fmt.Errorf("kafka error: %w", err)
 	}

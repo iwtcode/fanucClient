@@ -1,83 +1,132 @@
 package telegram
 
-import tele "gopkg.in/telebot.v3"
+import (
+	"fmt"
+
+	"github.com/iwtcode/fanucClient/internal/domain/entities"
+	tele "gopkg.in/telebot.v3"
+)
 
 type Menu struct {
-	// Главные меню
-	ReplyMain  *tele.ReplyMarkup // Нижнее меню
-	InlineMain *tele.ReplyMarkup // Инлайн меню под сообщениями
+	// Reply Main
+	ReplyMain  *tele.ReplyMarkup
+	BtnTargets tele.Btn
+	BtnWho     tele.Btn
+	BtnHome    tele.Btn
 
-	// Меню настроек (только Inline)
-	InlineSettings *tele.ReplyMarkup
+	// Inline Main (Navigation)
+	InlineMain    *tele.ReplyMarkup
+	BtnHomeInline tele.Btn
 
-	// Кнопки Reply (Главное меню)
-	BtnSettingsReply tele.Btn
-	BtnLastMsgReply  tele.Btn
-	BtnWhoReply      tele.Btn
+	// Inline Targets List
+	BtnAddTarget tele.Btn
+	BtnBack      tele.Btn
 
-	// Кнопки Inline (Главное меню)
-	BtnSettingsInline tele.Btn
-	BtnLastMsgInline  tele.Btn
-	BtnWhoInline      tele.Btn
+	// Inline Wizard
+	BtnCancelWizard tele.Btn
 
-	// Кнопки настроек (Inline)
-	BtnSetBroker    tele.Btn
-	BtnSetTopic     tele.Btn
-	BtnCancelConfig tele.Btn
+	// Inline Target Actions
+	BtnCheckMsg tele.Btn
+	BtnDelete   tele.Btn
 }
 
 func NewMenu() *Menu {
-	// 1. Инициализация разметок
 	replyMain := &tele.ReplyMarkup{ResizeKeyboard: true}
 	inlineMain := &tele.ReplyMarkup{}
-	inlineSettings := &tele.ReplyMarkup{}
 
-	// 2. Создание кнопок Reply
-	btnLastMsgReply := replyMain.Text("📩 Last Message")
-	btnSettingsReply := replyMain.Text("⚙️ Settings")
-	btnWhoReply := replyMain.Text("👤 WhoAmI")
+	// Reply Buttons
+	btnTargets := replyMain.Text("📋 Targets")
+	btnWho := replyMain.Text("👤 WhoAmI")
+	btnHome := replyMain.Text("🏠 Главная")
 
-	// 3. Создание кнопок Inline (Main)
-	// Unique ID важны для корректной обработки коллбэков
-	btnLastMsgInline := inlineMain.Data("📩 Last Message", "last_msg_btn")
-	btnSettingsInline := inlineMain.Data("⚙️ Settings", "settings_btn")
-	btnWhoInline := inlineMain.Data("👤 WhoAmI", "who_btn")
-
-	// 4. Создание кнопок Inline (Settings)
-	btnSetBroker := inlineSettings.Data("🔌 Set Broker", "set_broker")
-	btnSetTopic := inlineSettings.Data("📝 Set Topic", "set_topic")
-	btnCancel := inlineSettings.Data("🔙 Back", "cancel_config")
-
-	// 5. Компоновка Reply меню
 	replyMain.Reply(
-		replyMain.Row(btnLastMsgReply),
-		replyMain.Row(btnSettingsReply, btnWhoReply),
+		replyMain.Row(btnTargets, btnWho),
+		replyMain.Row(btnHome),
 	)
 
-	// 6. Компоновка Inline Main меню
-	inlineMain.Inline(
-		inlineMain.Row(btnLastMsgInline),
-		inlineMain.Row(btnSettingsInline, btnWhoInline),
-	)
+	// Inline Buttons
+	// Unique ID (второй аргумент) важен для статических кнопок, которые мы проверяем через switch unique
+	btnHomeInline := inlineMain.Data("🏠 Домой", "home")
 
-	// 7. Компоновка Inline Settings меню
-	inlineSettings.Inline(
-		inlineSettings.Row(btnSetBroker, btnSetTopic),
-		inlineSettings.Row(btnCancel),
-	)
+	btnAddTarget := inlineMain.Data("➕ Add New", "add_target")
+	btnBack := inlineMain.Data("🔙 Back to List", "back_to_list")
+	btnCancelWizard := inlineMain.Data("🚫 Cancel", "cancel_wizard")
+
+	btnCheckMsg := inlineMain.Data("📨 Check Message", "check_msg")
+	btnDelete := inlineMain.Data("🗑 Delete", "del_target")
 
 	return &Menu{
-		ReplyMain:         replyMain,
-		InlineMain:        inlineMain,
-		InlineSettings:    inlineSettings,
-		BtnSettingsReply:  btnSettingsReply,
-		BtnLastMsgReply:   btnLastMsgReply,
-		BtnWhoReply:       btnWhoReply,
-		BtnSettingsInline: btnSettingsInline,
-		BtnLastMsgInline:  btnLastMsgInline,
-		BtnWhoInline:      btnWhoInline,
-		BtnSetBroker:      btnSetBroker,
-		BtnSetTopic:       btnSetTopic,
-		BtnCancelConfig:   btnCancel,
+		ReplyMain:       replyMain,
+		InlineMain:      inlineMain,
+		BtnTargets:      btnTargets,
+		BtnWho:          btnWho,
+		BtnHome:         btnHome,
+		BtnHomeInline:   btnHomeInline,
+		BtnAddTarget:    btnAddTarget,
+		BtnBack:         btnBack,
+		BtnCancelWizard: btnCancelWizard,
+		BtnCheckMsg:     btnCheckMsg,
+		BtnDelete:       btnDelete,
 	}
+}
+
+// BuildMainMenu создает инлайн меню для команды /start
+func (m *Menu) BuildMainMenu() *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+
+	// ИСПРАВЛЕНИЕ: Используем 'targets_list' вместо 'back_to_list' для логирования
+	btnTargets := markup.Data("📋 Управление целями", "targets_list")
+	btnWho := markup.Data("👤 Информация", "who_btn")
+
+	markup.Inline(
+		markup.Row(btnTargets),
+		markup.Row(btnWho),
+	)
+	return markup
+}
+
+func (m *Menu) BuildWhoMenu() *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	markup.Inline(
+		markup.Row(m.BtnHomeInline),
+	)
+	return markup
+}
+
+func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	var rows []tele.Row
+
+	for _, t := range targets {
+		btn := markup.Data(fmt.Sprintf("🔩 %s", t.Name), fmt.Sprintf("view_target:%d", t.ID))
+		rows = append(rows, markup.Row(btn))
+	}
+
+	rows = append(rows, markup.Row(m.BtnAddTarget))
+	rows = append(rows, markup.Row(m.BtnHomeInline))
+
+	markup.Inline(rows...)
+	return markup
+}
+
+func (m *Menu) BuildTargetView(targetID uint) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+
+	btnCheck := markup.Data("📨 Check Message", fmt.Sprintf("check_msg:%d", targetID))
+	btnDel := markup.Data("🗑 Delete", fmt.Sprintf("del_target:%d", targetID))
+
+	markup.Inline(
+		markup.Row(btnCheck),
+		markup.Row(btnDel),
+		markup.Row(m.BtnBack),
+		markup.Row(m.BtnHomeInline),
+	)
+
+	return markup
+}
+
+func (m *Menu) BuildCancel() *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	markup.Inline(markup.Row(m.BtnCancelWizard))
+	return markup
 }

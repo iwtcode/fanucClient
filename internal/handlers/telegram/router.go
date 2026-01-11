@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/iwtcode/fanucClient/internal/domain/entities"
@@ -26,48 +27,83 @@ func NewRouter(menu *Menu, sUC interfaces.SettingsUsecase, mUC interfaces.Monito
 }
 
 func (r *Router) Register(b *tele.Bot) {
-	// Команды
+	// Commands
 	b.Handle("/start", r.onStart)
 
-	// Основные функции (регистрируем и на Reply, и на Inline кнопки)
-	b.Handle(&r.menu.BtnLastMsgReply, r.onLastMessage)
-	b.Handle(&r.menu.BtnLastMsgInline, r.onLastMessage)
+	// Reply Menu Handlers
+	b.Handle(&r.menu.BtnTargets, r.onListTargets)
+	b.Handle(&r.menu.BtnWho, r.onWho)
+	b.Handle(&r.menu.BtnHome, r.onStart)
 
-	b.Handle(&r.menu.BtnSettingsReply, r.onSettings)
-	b.Handle(&r.menu.BtnSettingsInline, r.onSettings)
+	// Static Inline handlers
+	b.Handle(&r.menu.BtnAddTarget, r.onAddTargetStart)
+	b.Handle(&r.menu.BtnBack, r.onListTargets)
+	b.Handle(&r.menu.BtnCancelWizard, r.onCancelWizard)
+	b.Handle(&r.menu.BtnHomeInline, r.onStart)
 
-	b.Handle(&r.menu.BtnWhoReply, r.onWho)
-	b.Handle(&r.menu.BtnWhoInline, r.onWho)
+	// Callback catch-all
+	b.Handle(tele.OnCallback, r.onCallback)
 
-	// Навигация внутри настроек (только Inline)
-	b.Handle(&r.menu.BtnSetBroker, r.onSetBrokerBtn)
-	b.Handle(&r.menu.BtnSetTopic, r.onSetTopicBtn)
-	b.Handle(&r.menu.BtnCancelConfig, r.onBackToMain) // Кнопка "Back" возвращает в главное меню
-
-	// Текстовые сообщения (для ввода данных FSM)
+	// Text Input (FSM)
 	b.Handle(tele.OnText, r.onText)
 }
 
-// refreshMessage - универсальная функция ответа.
-// Если взаимодействие через Inline кнопку -> редактирует сообщение.
-// Если через Reply кнопку или команду -> отправляет новое сообщение.
-func (r *Router) refreshMessage(c tele.Context, text string, markup *tele.ReplyMarkup) error {
-	// Если это callback (нажатие inline кнопки)
-	if c.Callback() != nil {
-		// Обязательно отвечаем на callback, чтобы убрать часики загрузки
-		c.Respond()
-		// Редактируем текущее сообщение
-		return c.Edit(text, markup)
+// onCallback handles dynamic buttons and routing
+func (r *Router) onCallback(c tele.Context) error {
+	unique := c.Callback().Unique
+	data := c.Callback().Data
+	data = strings.TrimSpace(data)
+
+	// 1. Проверяем статические кнопки (меню, отмена и т.д.) по Unique ID
+	switch unique {
+	case r.menu.BtnAddTarget.Unique:
+		return r.onAddTargetStart(c)
+	case r.menu.BtnBack.Unique:
+		return r.onListTargets(c)
+	case r.menu.BtnCancelWizard.Unique:
+		return r.onCancelWizard(c)
+	case r.menu.BtnHomeInline.Unique:
+		return r.onStart(c)
 	}
 
-	// Если это обычное текстовое сообщение, отправляем ответ с:
-	// 1. Текстом и Inline клавиатурой (markup)
-	// 2. Reply клавиатурой (она задается в опциях отправки, если нужна, но обычно она ставится один раз при /start)
-	// В данном случае мы всегда прикрепляем переданный Inline markup к сообщению.
-	return c.Send(text, markup)
+	// 2. Проверяем кастомные Data (созданные вручную в BuildMainMenu)
+	switch data {
+	case "targets_list": // <-- Теперь ловим этот ключ
+		return r.onListTargets(c)
+	case "back_to_list":
+		return r.onListTargets(c)
+	case "who_btn":
+		return r.onWho(c)
+	case "home":
+		return r.onStart(c)
+	}
+
+	// 3. Парсим динамические кнопки (action:id)
+	parts := strings.Split(data, ":")
+	if len(parts) < 2 {
+		return nil
+	}
+
+	action := parts[0]
+	idStr := parts[1]
+	id, _ := strconv.Atoi(idStr)
+	targetID := uint(id)
+
+	switch action {
+	case "view_target":
+		return r.onViewTarget(c, targetID)
+	case "check_msg":
+		return r.onCheckMessage(c, targetID)
+	case "del_target":
+		return r.onDeleteTarget(c, targetID)
+	}
+
+	return nil
 }
 
 func (r *Router) onStart(c tele.Context) error {
+	r.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
+
 	user := &entities.User{
 		ID:        c.Sender().ID,
 		FirstName: c.Sender().FirstName,
@@ -75,112 +111,172 @@ func (r *Router) onStart(c tele.Context) error {
 		State:     entities.StateIdle,
 	}
 	if err := r.settingsUC.RegisterUser(user); err != nil {
-		return c.Send("⚠️ Error registering user: " + err.Error())
+		return c.Send(fmt.Sprintf("⚠️ Error registering user: %s", err.Error()))
 	}
 
-	// При старте отправляем приветствие и устанавливаем нижнее меню (ReplyMain)
-	// А к самому сообщению прикрепляем InlineMain
-	return c.Send("👋 <b>Панель управления Fanuc Client</b>\n\nИспользуйте меню для навигации.",
-		r.menu.ReplyMain, r.menu.InlineMain)
-}
+	text := "👋 <b>Fanuc Client Configurator</b>\n\n" +
+		"Главное меню управления.\n" +
+		"Используйте кнопки ниже для навигации."
 
-func (r *Router) onSettings(c tele.Context) error {
-	user, _ := r.settingsUC.GetUser(c.Sender().ID)
+	inlineMarkup := r.menu.BuildMainMenu()
 
-	text := fmt.Sprintf("⚙️ <b>Configuration</b>\n\n"+
-		"🔌 Broker: <code>%s</code>\n"+
-		"📝 Topic: <code>%s</code>\n\n"+
-		"Выберите параметр для изменения:",
-		nonEmpty(user.KafkaBroker, "not set"),
-		nonEmpty(user.KafkaTopic, "not set"),
-	)
-
-	// Переходим в меню настроек (InlineSettings)
-	return r.refreshMessage(c, text, r.menu.InlineSettings)
-}
-
-func (r *Router) onLastMessage(c tele.Context) error {
-	// Если это нажатие кнопки, можно показать уведомление "Загрузка..." через c.Respond
-	// Но для простоты сразу делаем запрос
-	ctx := context.Background()
-	msg, err := r.monitoringUC.FetchLastKafkaMessage(ctx, c.Sender().ID)
-
-	if err != nil {
-		return r.refreshMessage(c, fmt.Sprintf("❌ <b>Error:</b>\n%s", err.Error()), r.menu.InlineMain)
+	if c.Callback() != nil {
+		c.Respond()
+		return c.Edit(text, inlineMarkup)
 	}
-
-	prettyMsg := prettyPrintJSON(msg)
-	text := fmt.Sprintf("📨 <b>Last Kafka Message:</b>\n\n<pre>%s</pre>", prettyMsg)
-
-	return r.refreshMessage(c, text, r.menu.InlineMain)
+	return c.Send(text, r.menu.ReplyMain, inlineMarkup)
 }
 
 func (r *Router) onWho(c tele.Context) error {
 	u, _ := r.settingsUC.GetUser(c.Sender().ID)
-	text := fmt.Sprintf("👤 <b>User Info</b>\n\n🆔 ID: <code>%d</code>\n📛 Name: <b>%s</b>\n🏷 State: <code>%s</code>",
+	text := fmt.Sprintf("👤 <b>User Info</b>\n\n"+
+		"🆔 ID: <code>%d</code>\n"+
+		"📛 Name: <b>%s</b>\n"+
+		"🏷 State: <code>%s</code>",
 		u.ID, u.FirstName, u.State)
 
-	return r.refreshMessage(c, text, r.menu.InlineMain)
+	markup := r.menu.BuildWhoMenu()
+
+	if c.Callback() != nil {
+		c.Respond()
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
-// Inline handlers for Settings
+// --- Targets List & Management ---
 
-func (r *Router) onSetBrokerBtn(c tele.Context) error {
-	r.settingsUC.SetState(c.Sender().ID, entities.StateWaitingBroker)
-	text := "🔌 <b>Setting Broker</b>\n\nОтправьте IP:PORT брокера (например, <code>192.168.1.50:9092</code>):"
-
-	// Здесь мы убираем кнопки, чтобы пользователь сосредоточился на вводе,
-	// или можно оставить кнопку "Отмена"
-	return r.refreshMessage(c, text, r.menu.InlineSettings)
-}
-
-func (r *Router) onSetTopicBtn(c tele.Context) error {
-	r.settingsUC.SetState(c.Sender().ID, entities.StateWaitingTopic)
-	text := "📝 <b>Setting Topic</b>\n\nОтправьте название Topic:"
-
-	return r.refreshMessage(c, text, r.menu.InlineSettings)
-}
-
-func (r *Router) onBackToMain(c tele.Context) error {
-	// Сбрасываем стейт и возвращаемся в главное меню
+func (r *Router) onListTargets(c tele.Context) error {
 	r.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
-	return r.refreshMessage(c, "👋 <b>Главное меню</b>", r.menu.InlineMain)
+
+	targets, err := r.settingsUC.GetTargets(c.Sender().ID)
+	if err != nil {
+		return c.Send("Error fetching targets: " + err.Error())
+	}
+
+	text := fmt.Sprintf("📋 <b>Ваши настройки (%d)</b>\n\nВыберите настройку для проверки или создайте новую.", len(targets))
+	markup := r.menu.BuildTargetsList(targets)
+
+	if c.Callback() != nil {
+		c.Respond()
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
-// State Machine Handler (Text Input)
+func (r *Router) onViewTarget(c tele.Context, targetID uint) error {
+	t, err := r.settingsUC.GetTargetByID(targetID)
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Target not found"})
+		return r.onListTargets(c)
+	}
+
+	text := fmt.Sprintf("🔩 <b>Target: %s</b>\n\n"+
+		"🔌 Broker: <code>%s</code>\n"+
+		"📝 Topic: <code>%s</code>\n"+
+		"🔑 Key: <code>%s</code>\n\n"+
+		"📅 Created: %s",
+		t.Name, t.Broker, t.Topic, nonEmpty(t.Key, "None (Read Last)"), t.CreatedAt.Format("02 Jan 15:04"))
+
+	markup := r.menu.BuildTargetView(targetID)
+	c.Respond()
+	return c.Edit(text, markup)
+}
+
+func (r *Router) onDeleteTarget(c tele.Context, targetID uint) error {
+	err := r.settingsUC.DeleteTarget(c.Sender().ID, targetID)
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Error deleting target"})
+	} else {
+		c.Respond(&tele.CallbackResponse{Text: "Deleted!"})
+	}
+	return r.onListTargets(c)
+}
+
+func (r *Router) onCheckMessage(c tele.Context, targetID uint) error {
+	c.Respond()
+
+	msg, err := r.monitoringUC.FetchLastKafkaMessage(context.Background(), targetID)
+	backMarkup := r.menu.BuildTargetView(targetID)
+
+	if err != nil {
+		return c.Edit(fmt.Sprintf("❌ <b>Error:</b>\n%s", err.Error()), backMarkup)
+	}
+
+	prettyMsg := prettyPrintJSON(msg)
+	if len(prettyMsg) > 3800 {
+		prettyMsg = prettyMsg[:3800] + "\n...[truncated]"
+	}
+
+	text := fmt.Sprintf("📨 <b>Result:</b>\n\n<pre>%s</pre>", prettyMsg)
+
+	return c.Edit(text, backMarkup)
+}
+
+// --- Wizard FSM ---
+
+func (r *Router) onAddTargetStart(c tele.Context) error {
+	r.settingsUC.SetState(c.Sender().ID, entities.StateWaitingName)
+	c.Respond()
+	return c.Edit("🖊 <b>Шаг 1/4: Название</b>\n\nВведите понятное имя для этого станка (например, 'Токарный 1'):", r.menu.BuildCancel())
+}
+
+func (r *Router) onCancelWizard(c tele.Context) error {
+	r.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
+	c.Respond()
+	return r.onListTargets(c)
+}
 
 func (r *Router) onText(c tele.Context) error {
-	user, err := r.settingsUC.GetUser(c.Sender().ID)
+	userID := c.Sender().ID
+	user, err := r.settingsUC.GetUser(userID)
 	if err != nil || user == nil {
 		return r.onStart(c)
 	}
 
 	input := strings.TrimSpace(c.Text())
 
-	// Игнорируем текст, если он совпадает с кнопками Reply меню,
-	// так как они обрабатываются отдельными хендлерами
-	if input == r.menu.BtnSettingsReply.Text ||
-		input == r.menu.BtnLastMsgReply.Text ||
-		input == r.menu.BtnWhoReply.Text {
+	if input == r.menu.BtnTargets.Text || input == r.menu.BtnWho.Text || input == r.menu.BtnHome.Text {
 		return nil
 	}
 
 	switch user.State {
-	case entities.StateWaitingBroker:
-		if err := r.settingsUC.SetBroker(user.ID, input); err != nil {
-			return c.Send("❌ Ошибка сохранения.", r.menu.InlineSettings)
+	case entities.StateWaitingName:
+		if err := r.settingsUC.SetDraftName(userID, input); err != nil {
+			return c.Send("Error saving state.")
 		}
-		return c.Send(fmt.Sprintf("✅ Broker сохранен: <code>%s</code>", input), r.menu.InlineSettings)
+		return c.Send("🔌 <b>Шаг 2/4: Брокер</b>\n\nВведите адрес брокера (IP:PORT):", r.menu.BuildCancel())
+
+	case entities.StateWaitingBroker:
+		if err := r.settingsUC.SetDraftBroker(userID, input); err != nil {
+			return c.Send("Error saving state.")
+		}
+		return c.Send("📝 <b>Шаг 3/4: Топик</b>\n\nВведите название Kafka Topic:", r.menu.BuildCancel())
 
 	case entities.StateWaitingTopic:
-		if err := r.settingsUC.SetTopic(user.ID, input); err != nil {
-			return c.Send("❌ Ошибка сохранения.", r.menu.InlineSettings)
+		if err := r.settingsUC.SetDraftTopic(userID, input); err != nil {
+			return c.Send("Error saving state.")
 		}
-		return c.Send(fmt.Sprintf("✅ Topic сохранен: <code>%s</code>", input), r.menu.InlineSettings)
+		return c.Send("🔑 <b>Шаг 4/4: Ключ (Опционально)</b>\n\nВведите Kafka Key (например, IP станка) или отправьте '0', '-' или 'no', чтобы читать любые последние сообщения:", r.menu.BuildCancel())
+
+	case entities.StateWaitingKey:
+		finalKey := input
+		if input == "0" || input == "-" || input == "no" {
+			finalKey = ""
+		}
+
+		if err := r.settingsUC.SetDraftKeyAndSave(userID, finalKey); err != nil {
+			return c.Send("❌ Ошибка при сохранении: " + err.Error())
+		}
+
+		c.Send(fmt.Sprintf("✅ Настройка <b>%s</b> сохранена!", user.DraftName))
+		return r.onListTargets(c)
+
+	case entities.StateIdle:
+		return c.Send("Я вас не понимаю. Используйте меню или нажмите /start.", r.menu.ReplyMain)
 
 	default:
-		// Если состояние idle и текст не команда
-		return c.Send("🤔 Я не понимаю это сообщение. Используйте кнопки меню.", r.menu.InlineMain)
+		return c.Send("Неизвестное состояние. Сброс...", r.menu.ReplyMain)
 	}
 }
 
@@ -198,7 +294,7 @@ func prettyPrintJSON(input string) string {
 	if err := json.Unmarshal([]byte(input), &temp); err != nil {
 		return input
 	}
-	pretty, err := json.MarshalIndent(temp, "", "    ")
+	pretty, err := json.MarshalIndent(temp, "", "  ")
 	if err != nil {
 		return input
 	}

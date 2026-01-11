@@ -27,7 +27,9 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 	}
 
 	b.Use(middleware.Recover())
-	b.Use(middleware.Logger())
+
+	// ЗАМЕНА: Вместо middleware.Logger() используем свой
+	b.Use(LogMiddleware())
 
 	// Регистрируем все хендлеры через роутер
 	router.Register(b)

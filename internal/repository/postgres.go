@@ -54,7 +54,7 @@ func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
 	}
 
 	// 3. Автомиграция
-	if err := db.AutoMigrate(&entities.User{}); err != nil {
+	if err := db.AutoMigrate(&entities.User{}, &entities.MonitoringTarget{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 

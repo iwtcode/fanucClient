@@ -25,18 +25,59 @@ func (u *settingsUsecase) SetState(id int64, state string) error {
 	return u.repo.UpdateState(id, state)
 }
 
-func (u *settingsUsecase) SetBroker(id int64, broker string) error {
-	// Сбрасываем стейт в idle после сохранения
-	if err := u.repo.UpdateBroker(id, broker); err != nil {
+func (u *settingsUsecase) SetDraftName(id int64, name string) error {
+	return u.repo.UpdateDraft(id, map[string]interface{}{
+		"draft_name": name,
+		"state":      entities.StateWaitingBroker,
+	})
+}
+
+func (u *settingsUsecase) SetDraftBroker(id int64, broker string) error {
+	return u.repo.UpdateDraft(id, map[string]interface{}{
+		"draft_broker": broker,
+		"state":        entities.StateWaitingTopic,
+	})
+}
+
+func (u *settingsUsecase) SetDraftTopic(id int64, topic string) error {
+	return u.repo.UpdateDraft(id, map[string]interface{}{
+		"draft_topic": topic,
+		"state":       entities.StateWaitingKey,
+	})
+}
+
+func (u *settingsUsecase) SetDraftKeyAndSave(id int64, key string) error {
+	// 1. Get current drafts
+	user, err := u.repo.GetByID(id)
+	if err != nil {
 		return err
 	}
+
+	// 2. Create Target
+	target := &entities.MonitoringTarget{
+		UserID: user.ID,
+		Name:   user.DraftName,
+		Broker: user.DraftBroker,
+		Topic:  user.DraftTopic,
+		Key:    key,
+	}
+
+	if err := u.repo.AddTarget(target); err != nil {
+		return err
+	}
+
+	// 3. Reset State
 	return u.repo.UpdateState(id, entities.StateIdle)
 }
 
-func (u *settingsUsecase) SetTopic(id int64, topic string) error {
-	// Сбрасываем стейт в idle после сохранения
-	if err := u.repo.UpdateTopic(id, topic); err != nil {
-		return err
-	}
-	return u.repo.UpdateState(id, entities.StateIdle)
+func (u *settingsUsecase) GetTargets(userID int64) ([]entities.MonitoringTarget, error) {
+	return u.repo.GetTargets(userID)
+}
+
+func (u *settingsUsecase) DeleteTarget(userID int64, targetID uint) error {
+	return u.repo.DeleteTarget(targetID, userID)
+}
+
+func (u *settingsUsecase) GetTargetByID(targetID uint) (*entities.MonitoringTarget, error) {
+	return u.repo.GetTargetByID(targetID)
 }
