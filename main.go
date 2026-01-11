@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http" // <--- Добавили для реального запроса
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -12,10 +12,6 @@ import (
 	tele "gopkg.in/telebot.v3"
 	"gopkg.in/telebot.v3/middleware"
 )
-
-// ==========================================
-// Глобальные переменные
-// ==========================================
 
 var (
 	// Время запуска бота для Uptime
@@ -53,7 +49,6 @@ func main() {
 
 	b.Use(middleware.Recover())
 
-	// Логгер (который мы исправили ранее)
 	b.Use(func(next tele.HandlerFunc) tele.HandlerFunc {
 		return func(c tele.Context) error {
 			user := c.Sender()
@@ -89,29 +84,16 @@ func main() {
 		inlineMenu.Row(btnPingInline, btnWhoInline, btnTimeInline),
 	)
 
-	// ==========================================
-	// 🔥 НОРМАЛЬНЫЙ PING
-	// ==========================================
 	pingFunc := func(c tele.Context) error {
-		// 1. Засекаем время перед отправкой запроса
 		start := time.Now()
-
-		// 2. Делаем легкий HEAD запрос к API Telegram
-		// Это измеряет реальную скорость сети от твоего сервера до дата-центра Telegram
 		resp, err := http.Head("https://api.telegram.org")
 		if err != nil {
 			return refreshMessage(c, fmt.Sprintf("🏓 <b>Pong!</b>\n\n❌ Error: %s", err.Error()))
 		}
 		defer resp.Body.Close()
 
-		// 3. Вычисляем задержку
-		latency := time.Since(start).Milliseconds() // В миллисекундах
-
-		// 4. Вычисляем Аптайм (время работы)
+		latency := time.Since(start).Milliseconds()
 		uptime := time.Since(botStartTime).Round(time.Second)
-
-		// Красивый вывод
-		// Если пинг меньше 200мс - зеленый, иначе - оранжевый
 		statusIcon := "🟢"
 		if latency > 200 {
 			statusIcon = "🟠"
