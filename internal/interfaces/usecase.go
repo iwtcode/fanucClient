@@ -12,6 +12,11 @@ type SettingsUsecase interface {
 	GetUser(id int64) (*entities.User, error)
 	SetState(id int64, state string) error
 
+	// Context Helpers for Wizards
+	SetContextSvcID(userID int64, svcID uint) error
+	SetContextMachineID(userID int64, machineID string) error
+	SetDraftConnIP(userID int64, ip string) error
+
 	// Kafka Targets Management
 	SetDraftName(id int64, name string) error
 	SetDraftBroker(id int64, broker string) error
@@ -35,6 +40,14 @@ type MonitoringUsecase interface {
 }
 
 type ControlUsecase interface {
-	// ListMachines получает список подключений с указанного сервиса
+	// Machine Management
+	CreateMachine(ctx context.Context, svcID uint, endpoint, series string) (*fanucService.MachineDTO, error)
 	ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error)
+	GetMachine(ctx context.Context, svcID uint, machineID string) (*fanucService.MachineDTO, error)
+	DeleteMachine(ctx context.Context, svcID uint, machineID string) error
+
+	// Actions
+	StartPolling(ctx context.Context, svcID uint, machineID string, intervalMs int) error
+	StopPolling(ctx context.Context, svcID uint, machineID string) error
+	GetProgram(ctx context.Context, svcID uint, machineID string) (string, error)
 }

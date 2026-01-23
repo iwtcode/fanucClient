@@ -20,18 +20,74 @@ func NewControlUsecase(repo interfaces.UserRepository, apiSvc interfaces.FanucAp
 	}
 }
 
-func (u *controlUsecase) ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error) {
-	// 1. Получаем конфиг сервиса из БД
+func (u *controlUsecase) getServiceConfig(svcID uint) (string, string, error) {
 	svc, err := u.repo.GetServiceByID(svcID)
 	if err != nil {
-		return nil, fmt.Errorf("service not found: %w", err)
+		return "", "", fmt.Errorf("service config not found: %w", err)
 	}
+	return svc.BaseURL, svc.APIKey, nil
+}
 
-	// 2. Делаем запрос через API
-	machines, err := u.apiSvc.GetConnections(ctx, svc.BaseURL, svc.APIKey)
+func (u *controlUsecase) CreateMachine(ctx context.Context, svcID uint, endpoint, series string) (*fanucService.MachineDTO, error) {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
 	if err != nil {
-		return nil, fmt.Errorf("api error: %w", err)
+		return nil, err
 	}
 
-	return machines, nil
+	req := fanucService.ConnectionRequest{
+		Endpoint: endpoint,
+		Series:   series,
+		Timeout:  5000,
+		Model:    "CreatedByBot",
+	}
+
+	return u.apiSvc.CreateConnection(ctx, baseURL, apiKey, req)
+}
+
+func (u *controlUsecase) ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error) {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return nil, err
+	}
+	return u.apiSvc.GetConnections(ctx, baseURL, apiKey)
+}
+
+func (u *controlUsecase) GetMachine(ctx context.Context, svcID uint, machineID string) (*fanucService.MachineDTO, error) {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return nil, err
+	}
+	return u.apiSvc.CheckConnection(ctx, baseURL, apiKey, machineID)
+}
+
+func (u *controlUsecase) DeleteMachine(ctx context.Context, svcID uint, machineID string) error {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return err
+	}
+	return u.apiSvc.DeleteConnection(ctx, baseURL, apiKey, machineID)
+}
+
+func (u *controlUsecase) StartPolling(ctx context.Context, svcID uint, machineID string, intervalMs int) error {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return err
+	}
+	return u.apiSvc.StartPolling(ctx, baseURL, apiKey, machineID, intervalMs)
+}
+
+func (u *controlUsecase) StopPolling(ctx context.Context, svcID uint, machineID string) error {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return err
+	}
+	return u.apiSvc.StopPolling(ctx, baseURL, apiKey, machineID)
+}
+
+func (u *controlUsecase) GetProgram(ctx context.Context, svcID uint, machineID string) (string, error) {
+	baseURL, apiKey, err := u.getServiceConfig(svcID)
+	if err != nil {
+		return "", err
+	}
+	return u.apiSvc.GetControlProgram(ctx, baseURL, apiKey, machineID)
 }

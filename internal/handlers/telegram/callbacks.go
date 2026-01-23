@@ -78,12 +78,9 @@ func (h *CallbackHandler) handleDynamicCallback(c tele.Context, data string) err
 		return nil
 	}
 	action := parts[0]
-	idStr := parts[1]
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		return nil
-	}
-	uID := uint(id)
+	// First arg is usually numeric ID (svcID or targetID)
+	idVal, _ := strconv.Atoi(parts[1])
+	uID := uint(idVal)
 
 	switch action {
 	// Kafka
@@ -105,6 +102,27 @@ func (h *CallbackHandler) handleDynamicCallback(c tele.Context, data string) err
 		return h.onDeleteService(c, uID)
 	case "svc_machines":
 		return h.onListServiceMachines(c, uID)
+	case "add_conn":
+		return h.onAddConnectionStart(c, uID)
+
+	// Machine Actions (Format: action:svcID:machineID)
+	case "vm", "sp", "stp", "gp", "dc":
+		if len(parts) < 3 {
+			return nil
+		}
+		machineID := parts[2]
+		switch action {
+		case "vm": // view machine
+			return h.onViewMachine(c, uID, machineID)
+		case "sp": // start poll
+			return h.onStartPollWizard(c, uID, machineID)
+		case "stp": // stop poll
+			return h.onStopPoll(c, uID, machineID)
+		case "gp": // get program
+			return h.onGetProgram(c, uID, machineID)
+		case "dc": // delete connection
+			return h.onDeleteConnection(c, uID, machineID)
+		}
 	}
 	return nil
 }
@@ -117,7 +135,6 @@ func (h *CallbackHandler) onListServices(c tele.Context) error {
 
 	services, err := h.settingsUC.GetServices(c.Sender().ID)
 	if err != nil {
-		// Экранируем ошибку, чтобы не сломать разметку, если там спецсимволы
 		safeErr := html.EscapeString(err.Error())
 		return c.Send("Error fetching services: " + safeErr)
 	}
@@ -137,7 +154,6 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 		return h.onListServices(c)
 	}
 
-	// Экранируем данные из БД
 	safeName := html.EscapeString(s.Name)
 	safeURL := html.EscapeString(s.BaseURL)
 
@@ -165,35 +181,126 @@ func (h *CallbackHandler) onListServiceMachines(c tele.Context, svcID uint) erro
 	c.Notify(tele.Typing)
 
 	machines, err := h.controlUC.ListMachines(context.Background(), svcID)
-	backMarkup := h.menu.BuildBackToService(svcID)
-
+	// Build menu even if error to allow back button
 	if err != nil {
-		// Экранируем текст ошибки, так как он может содержать HTML (например <!DOCTYPE...)
+		backMarkup := h.menu.BuildServiceView(svcID) // Go back to service view
 		safeErr := html.EscapeString(err.Error())
 		return c.Edit(fmt.Sprintf("❌ <b>Error calling API:</b>\n%s", safeErr), backMarkup)
 	}
 
-	// Сериализуем ответ API в JSON для отображения
-	jsonBytes, err := json.MarshalIndent(machines, "", "  ")
+	text := fmt.Sprintf("🔌 <b>Список станков (%d):</b>\n\nВыберите станок для управления:", len(machines))
+	markup := h.menu.BuildMachinesList(svcID, machines)
+
+	return c.Edit(text, markup)
+}
+
+// --- Machine Actions Handlers ---
+
+func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID string) error {
+	c.Notify(tele.Typing)
+	machine, err := h.controlUC.GetMachine(context.Background(), svcID, machineID)
 	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Error refreshing machine"})
+		// Fallback to list
+		return h.onListServiceMachines(c, svcID)
+	}
+
+	safeEP := html.EscapeString(machine.Endpoint)
+	safeModel := html.EscapeString(machine.Model)
+	safeSeries := html.EscapeString(machine.Series)
+
+	statusIcon := "🟢"
+	if machine.Status != "connected" {
+		statusIcon = "🔴"
+	}
+
+	text := fmt.Sprintf("📟 <b>Станок: %s</b>\n"+
+		"ID: <code>%s</code>\n"+
+		"Address: <code>%s</code>\n"+
+		"Model: %s (Series: %s)\n"+
+		"Status: %s <b>%s</b>\n"+
+		"Mode: <b>%s</b>",
+		safeModel, machine.ID, safeEP, safeModel, safeSeries, statusIcon, machine.Status, machine.Mode)
+
+	if machine.Mode == "polling" {
+		text += fmt.Sprintf("\nPolling Interval: %d ms", machine.Interval)
+	}
+
+	markup := h.menu.BuildMachineView(svcID, *machine)
+	return c.Edit(text, markup)
+}
+
+func (h *CallbackHandler) onAddConnectionStart(c tele.Context, svcID uint) error {
+	userID := c.Sender().ID
+	h.settingsUC.SetState(userID, entities.StateWaitingConnEndpoint)
+	h.settingsUC.SetContextSvcID(userID, svcID)
+
+	return c.Edit("🔌 <b>Шаг 1/2: Endpoint</b>\n\nВведите IP адрес и порт станка (например: 192.168.1.10:8193):", h.menu.BuildCancel())
+}
+
+func (h *CallbackHandler) onDeleteConnection(c tele.Context, svcID uint, machineID string) error {
+	c.Notify(tele.Typing)
+	err := h.controlUC.DeleteMachine(context.Background(), svcID, machineID)
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Error: " + err.Error()})
+	} else {
+		c.Respond(&tele.CallbackResponse{Text: "Connection deleted"})
+	}
+	return h.onListServiceMachines(c, svcID)
+}
+
+func (h *CallbackHandler) onStartPollWizard(c tele.Context, svcID uint, machineID string) error {
+	userID := c.Sender().ID
+	h.settingsUC.SetState(userID, entities.StateWaitingPollInterval)
+	h.settingsUC.SetContextSvcID(userID, svcID)
+	h.settingsUC.SetContextMachineID(userID, machineID)
+
+	return c.Edit("⏱ <b>Настройка опроса</b>\n\nВведите интервал опроса в миллисекундах (например, 1000):", h.menu.BuildCancel())
+}
+
+func (h *CallbackHandler) onStopPoll(c tele.Context, svcID uint, machineID string) error {
+	c.Notify(tele.Typing)
+	err := h.controlUC.StopPolling(context.Background(), svcID, machineID)
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Error stopping polling"})
+	} else {
+		c.Respond(&tele.CallbackResponse{Text: "Polling stopped"})
+	}
+	// Refresh view
+	return h.onViewMachine(c, svcID, machineID)
+}
+
+func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID string) error {
+	c.Notify(tele.UploadingDocument)
+	prog, err := h.controlUC.GetProgram(context.Background(), svcID, machineID)
+
+	if err != nil {
+		c.Respond(&tele.CallbackResponse{Text: "Error getting program"})
 		safeErr := html.EscapeString(err.Error())
-		return c.Edit(fmt.Sprintf("❌ <b>JSON Error:</b>\n%s", safeErr), backMarkup)
+
+		// Rebuild "Back" button to stay on error screen or go back
+		backMarkup := &tele.ReplyMarkup{}
+		backMarkup.Inline(backMarkup.Row(backMarkup.Data("🔙 Back", fmt.Sprintf("vm:%d:%s", svcID, machineID))))
+
+		return c.Edit(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
 	}
 
-	jsonString := string(jsonBytes)
-
-	// Обрезаем, если сообщение слишком длинное для Telegram (лимит ~4096 символов)
-	// Оставляем запас под заголовок и теги
-	if len(jsonString) > 3800 {
-		jsonString = jsonString[:3800] + "\n...[truncated]"
+	// Создаем документ из строки
+	doc := &tele.Document{
+		File:     tele.FromReader(strings.NewReader(prog)),
+		FileName: "GCODE.NC",
+		Caption:  fmt.Sprintf("📄 Program from %s", machineID),
+		MIME:     "text/plain",
 	}
 
-	// Экранируем JSON перед вставкой в HTML
-	safeJSON := html.EscapeString(jsonString)
+	// Отправляем файл НОВЫМ сообщением
+	if err := c.Send(doc); err != nil {
+		return c.Edit("❌ Failed to send file: " + err.Error())
+	}
 
-	text := fmt.Sprintf("🔌 <b>Список станков:</b>\n<pre>%s</pre>", safeJSON)
-
-	return c.Edit(text, backMarkup)
+	// Возвращаем исходное сообщение (меню) в состояние просмотра станка,
+	// чтобы у пользователя остался интерфейс управления.
+	return h.onViewMachine(c, svcID, machineID)
 }
 
 // --- Service Wizard ---
@@ -234,7 +341,6 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 		keyDisplay = "None"
 	}
 
-	// Экранирование
 	safeName := html.EscapeString(t.Name)
 	safeBroker := html.EscapeString(t.Broker)
 	safeTopic := html.EscapeString(t.Topic)
@@ -263,12 +369,11 @@ func (h *CallbackHandler) onCheckMessage(c tele.Context, targetID uint) error {
 	if len(prettyMsg) > 3800 {
 		prettyMsg = prettyMsg[:3800] + "\n...[truncated]"
 	}
-	// Экранируем JSON перед вставкой в HTML (даже внутри pre)
 	safeMsg := html.EscapeString(prettyMsg)
 	return c.Edit(fmt.Sprintf("📨 Result:\n<pre>%s</pre>", safeMsg), backMarkup)
 }
 
-// --- Live Mode & Wizard (Existing simplified) ---
+// --- Live Mode ---
 
 func (h *CallbackHandler) onLiveModeStart(c tele.Context, targetID uint) error {
 	userID := c.Sender().ID
@@ -350,10 +455,9 @@ func (h *CallbackHandler) onAddTargetStart(c tele.Context) error {
 
 func (h *CallbackHandler) onCancelWizard(c tele.Context) error {
 	h.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
-	return h.cmdHandler.OnStart(c) // Return to main menu
+	return h.cmdHandler.OnStart(c)
 }
 
-// Helper
 func prettyPrintJSON(input string) string {
 	var temp interface{}
 	if err := json.Unmarshal([]byte(input), &temp); err != nil {

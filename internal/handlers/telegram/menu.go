@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/iwtcode/fanucClient/internal/domain/entities"
+	"github.com/iwtcode/fanucService"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -32,7 +33,10 @@ type Menu struct {
 	BtnAddService  tele.Btn
 	BtnBackSvc     tele.Btn
 	BtnDeleteSvc   tele.Btn
-	BtnSvcMachines tele.Btn // Список подключений на сервисе
+	BtnSvcMachines tele.Btn
+
+	// --- Machines Control ---
+	BtnAddConnection tele.Btn
 }
 
 func NewMenu() *Menu {
@@ -66,7 +70,10 @@ func NewMenu() *Menu {
 	btnAddService := inlineMain.Data("➕ API Service", "add_service")
 	btnBackSvc := inlineMain.Data("🔙 К списку Сервисов", "services_list")
 	btnDeleteSvc := inlineMain.Data("🗑 Удалить сервис", "del_service")
-	btnSvcMachines := inlineMain.Data("🔌 Список станков", "svc_machines")
+	btnSvcMachines := inlineMain.Data("🔌 Управление станками", "svc_machines")
+
+	// Machines
+	btnAddConnection := inlineMain.Data("➕ Подключить станок", "add_conn")
 
 	return &Menu{
 		ReplyMain:     replyMain,
@@ -87,10 +94,11 @@ func NewMenu() *Menu {
 		BtnStopLive:     btnStopLive,
 
 		// Services
-		BtnAddService:  btnAddService,
-		BtnBackSvc:     btnBackSvc,
-		BtnDeleteSvc:   btnDeleteSvc,
-		BtnSvcMachines: btnSvcMachines,
+		BtnAddService:    btnAddService,
+		BtnBackSvc:       btnBackSvc,
+		BtnDeleteSvc:     btnDeleteSvc,
+		BtnSvcMachines:   btnSvcMachines,
+		BtnAddConnection: btnAddConnection,
 	}
 }
 
@@ -165,7 +173,8 @@ func (m *Menu) BuildServicesList(services []entities.FanucService) *tele.ReplyMa
 
 func (m *Menu) BuildServiceView(svcID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-	btnList := markup.Data("🔌 Список станков", fmt.Sprintf("svc_machines:%d", svcID))
+	// Важно передать svcID
+	btnList := markup.Data("🔌 Управление станками", fmt.Sprintf("svc_machines:%d", svcID))
 	btnDel := markup.Data("🗑 Удалить сервис", fmt.Sprintf("del_service:%d", svcID))
 
 	markup.Inline(
@@ -176,10 +185,58 @@ func (m *Menu) BuildServiceView(svcID uint) *tele.ReplyMarkup {
 	return markup
 }
 
-func (m *Menu) BuildBackToService(svcID uint) *tele.ReplyMarkup {
+// --- Machine Menus ---
+
+func (m *Menu) BuildMachinesList(svcID uint, machines []fanucService.MachineDTO) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-	btnBack := markup.Data("🔙 Назад к сервису", fmt.Sprintf("view_service:%d", svcID))
-	markup.Inline(markup.Row(btnBack))
+	var rows []tele.Row
+
+	for _, mach := range machines {
+		statusIcon := "🟢"
+		if mach.Status != "connected" {
+			statusIcon = "🔴"
+		} else if mach.Mode == "polling" {
+			statusIcon = "🔄"
+		}
+		// Используем сокращенный префикс vm (view_machine) чтобы влезть в 64 байта
+		btn := markup.Data(fmt.Sprintf("%s %s (%s)", statusIcon, mach.Endpoint, mach.Model),
+			fmt.Sprintf("vm:%d:%s", svcID, mach.ID))
+		rows = append(rows, markup.Row(btn))
+	}
+
+	btnAdd := markup.Data("➕ Подключить станок", fmt.Sprintf("add_conn:%d", svcID))
+	btnBack := markup.Data("🔙 К сервису", fmt.Sprintf("view_service:%d", svcID))
+
+	rows = append(rows, markup.Row(btnAdd))
+	rows = append(rows, markup.Row(btnBack))
+	markup.Inline(rows...)
+	return markup
+}
+
+func (m *Menu) BuildMachineView(svcID uint, machine fanucService.MachineDTO) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+
+	// Действия
+	// sp = start poll, stp = stop poll, gp = get program, dc = delete connection
+	// Формат: action:svcID:machineID
+
+	var btnPoll tele.Btn
+	if machine.Mode == "polling" {
+		btnPoll = markup.Data("⏹ Остановить опрос", fmt.Sprintf("stp:%d:%s", svcID, machine.ID))
+	} else {
+		btnPoll = markup.Data("▶ Запустить опрос", fmt.Sprintf("sp:%d:%s", svcID, machine.ID))
+	}
+
+	btnProg := markup.Data("📄 Скачать программу", fmt.Sprintf("gp:%d:%s", svcID, machine.ID))
+	btnDel := markup.Data("🗑 Удалить", fmt.Sprintf("dc:%d:%s", svcID, machine.ID))
+	btnBack := markup.Data("🔙 К списку станков", fmt.Sprintf("svc_machines:%d", svcID))
+
+	markup.Inline(
+		markup.Row(btnPoll),
+		markup.Row(btnProg),
+		markup.Row(btnDel),
+		markup.Row(btnBack),
+	)
 	return markup
 }
 

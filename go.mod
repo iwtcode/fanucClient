@@ -3,7 +3,7 @@ module github.com/iwtcode/fanucClient
 go 1.24.4
 
 require (
-	github.com/iwtcode/fanucService v1.0.7
+	github.com/iwtcode/fanucService v1.0.8
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.49
 	go.uber.org/fx v1.24.0

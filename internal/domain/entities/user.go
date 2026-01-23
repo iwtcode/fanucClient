@@ -14,10 +14,17 @@ const (
 	StateWaitingTopic  = "waiting_topic"
 	StateWaitingKey    = "waiting_key"
 
-	// Service Wizard
+	// Service Wizard (Registration of API)
 	StateWaitingSvcName = "waiting_svc_name"
 	StateWaitingSvcHost = "waiting_svc_host" // IP:PORT
 	StateWaitingSvcKey  = "waiting_svc_key"  // API Key
+
+	// Connection Wizard (Adding Machine to Remote API)
+	StateWaitingConnEndpoint = "waiting_conn_endpoint"
+	StateWaitingConnSeries   = "waiting_conn_series" // Optional
+
+	// Polling Wizard
+	StateWaitingPollInterval = "waiting_poll_interval"
 )
 
 type User struct {
@@ -38,6 +45,12 @@ type User struct {
 	DraftSvcName string `gorm:"size:255"`
 	DraftSvcHost string `gorm:"size:255"`
 	DraftSvcKey  string `gorm:"size:255"`
+
+	// Context fields for Remote API Operations
+	// (Используются, когда мы находимся в wizard-е добавления станка или настройки опроса)
+	ContextSvcID     uint   `gorm:"default:0"` // ID сервиса в БД бота
+	ContextMachineID string `gorm:"size:255"`  // ID станка на удаленном сервисе
+	DraftConnIP      string `gorm:"size:255"`  // IP:PORT для нового станка
 
 	// Relations
 	Targets  []MonitoringTarget `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`

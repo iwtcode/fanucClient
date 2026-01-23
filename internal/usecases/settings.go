@@ -29,6 +29,23 @@ func (u *settingsUsecase) SetState(id int64, state string) error {
 	return u.repo.UpdateState(id, state)
 }
 
+// --- Context Helpers ---
+
+func (u *settingsUsecase) SetContextSvcID(userID int64, svcID uint) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{"context_svc_id": svcID})
+}
+
+func (u *settingsUsecase) SetContextMachineID(userID int64, machineID string) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{"context_machine_id": machineID})
+}
+
+func (u *settingsUsecase) SetDraftConnIP(userID int64, ip string) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{
+		"draft_conn_ip": ip,
+		"state":         entities.StateWaitingConnSeries,
+	})
+}
+
 // --- Kafka Targets Wizard ---
 
 func (u *settingsUsecase) SetDraftName(id int64, name string) error {

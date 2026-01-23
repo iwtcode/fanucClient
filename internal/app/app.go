@@ -24,16 +24,16 @@ func New() *fx.App {
 
 			// Services
 			services.NewKafkaService,
-			services.NewFanucApiService, // Новый сервис API
+			services.NewFanucApiService,
 
 			// Usecases
 			usecases.NewSettingsUsecase,
 			usecases.NewMonitoringUsecase,
-			usecases.NewControlUsecase, // Новый юзкейс
+			usecases.NewControlUsecase,
 
 			// Telegram Components
 			telegram.NewMenu,
-			telegram.NewCommandHandler,
+			telegram.NewCommandHandler, // Внутри обновлен конструктор
 			telegram.NewCallbackHandler,
 			telegram.NewRouter,
 			telegram.NewBot,

@@ -243,8 +243,8 @@ github.com/hashicorp/serf v0.9.6/go.mod h1:TXZNMjZQijwlDvp+r0b63xZ45H7JmCmgg4gpT
 github.com/hashicorp/serf v0.9.7/go.mod h1:TXZNMjZQijwlDvp+r0b63xZ45H7JmCmgg4gpTwn9UV4=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
-github.com/iwtcode/fanucService v1.0.7 h1:FXg0ohM6kI8tVD94qJnyKMt8z940dCFKtCN3alt9qOU=
-github.com/iwtcode/fanucService v1.0.7/go.mod h1:eqXnpYsIRSxMYRyy4lVHC7UfI5aUIzGisf/zLlgsRDU=
+github.com/iwtcode/fanucService v1.0.8 h1:ZhPT49U5dcBB27vdcU2ynclJXwnScFQNmI1gfm4v13E=
+github.com/iwtcode/fanucService v1.0.8/go.mod h1:eqXnpYsIRSxMYRyy4lVHC7UfI5aUIzGisf/zLlgsRDU=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
