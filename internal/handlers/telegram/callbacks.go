@@ -164,7 +164,11 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 		safeName, safeURL)
 
 	markup := h.menu.BuildServiceView(svcID)
-	return c.Edit(text, markup)
+
+	if c.Callback() != nil {
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
 func (h *CallbackHandler) onDeleteService(c tele.Context, svcID uint) error {
@@ -185,13 +189,21 @@ func (h *CallbackHandler) onListServiceMachines(c tele.Context, svcID uint) erro
 	if err != nil {
 		backMarkup := h.menu.BuildServiceView(svcID) // Go back to service view
 		safeErr := html.EscapeString(err.Error())
-		return c.Edit(fmt.Sprintf("❌ <b>Error calling API:</b>\n%s", safeErr), backMarkup)
+
+		msg := fmt.Sprintf("❌ <b>Error calling API:</b>\n%s", safeErr)
+		if c.Callback() != nil {
+			return c.Edit(msg, backMarkup)
+		}
+		return c.Send(msg, backMarkup)
 	}
 
 	text := fmt.Sprintf("🔌 <b>Список станков (%d):</b>\n\nВыберите станок для управления:", len(machines))
 	markup := h.menu.BuildMachinesList(svcID, machines)
 
-	return c.Edit(text, markup)
+	if c.Callback() != nil {
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
 // --- Machine Actions Handlers ---
@@ -227,7 +239,12 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 	}
 
 	markup := h.menu.BuildMachineView(svcID, *machine)
-	return c.Edit(text, markup)
+
+	// Адаптивное поведение: если это Callback (кнопка) - редактируем, если нет (текст) - отправляем
+	if c.Callback() != nil {
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
 func (h *CallbackHandler) onAddConnectionStart(c tele.Context, svcID uint) error {
@@ -282,14 +299,17 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 		backMarkup := &tele.ReplyMarkup{}
 		backMarkup.Inline(backMarkup.Row(backMarkup.Data("🔙 Back", fmt.Sprintf("vm:%d:%s", svcID, machineID))))
 
-		return c.Edit(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
+		if c.Callback() != nil {
+			return c.Edit(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
+		}
+		return c.Send(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
 	}
 
 	// Создаем документ из строки
 	doc := &tele.Document{
 		File:     tele.FromReader(strings.NewReader(prog)),
 		FileName: "GCODE.NC",
-		Caption:  fmt.Sprintf("📄 Program from %s", machineID),
+		Caption:  fmt.Sprintf("📄 Control program\nid: <code>%s<code> ", machineID),
 		MIME:     "text/plain",
 	}
 
@@ -349,7 +369,11 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 	text := fmt.Sprintf("🔩 <b>Target: %s</b>\nBroker: <code>%s</code>\nTopic: <code>%s</code>\nKey: <code>%s</code>",
 		safeName, safeBroker, safeTopic, safeKey)
 	markup := h.menu.BuildTargetView(targetID)
-	return c.Edit(text, markup)
+
+	if c.Callback() != nil {
+		return c.Edit(text, markup)
+	}
+	return c.Send(text, markup)
 }
 
 func (h *CallbackHandler) onDeleteTarget(c tele.Context, targetID uint) error {

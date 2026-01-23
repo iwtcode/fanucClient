@@ -82,9 +82,13 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 	case h.menu.BtnWho.Text:
 		return h.OnWho(c)
 	case h.menu.BtnTargets.Text:
-		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListTargets(c)
+		// Создаем временный хендлер для навигации
+		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
+		return cb.onListTargets(c)
 	case h.menu.BtnServices.Text:
-		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListServices(c)
+		// Создаем временный хендлер для навигации
+		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
+		return cb.onListServices(c)
 	}
 
 	// FSM
@@ -106,7 +110,10 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		}
 		h.settingsUC.SetDraftKeyAndSave(userID, finalKey)
 		c.Send("✅ Kafka Target Saved!")
-		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListTargets(c)
+
+		// Возврат к списку
+		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
+		return cb.onListTargets(c)
 
 	// --- Service Registration Wizard ---
 	case entities.StateWaitingSvcName:
@@ -118,7 +125,10 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 	case entities.StateWaitingSvcKey:
 		h.settingsUC.SetDraftSvcKeyAndSave(userID, input)
 		c.Send("✅ Service Saved!")
-		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListServices(c)
+
+		// Возврат к списку сервисов
+		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
+		return cb.onListServices(c)
 
 	// --- Machine Connection Wizard (Remote API) ---
 	case entities.StateWaitingConnEndpoint:
@@ -144,6 +154,7 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
 		// Redirect to machine list
+		// Используем controlUC для отображения
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
 		return cb.onListServiceMachines(c, svcID)
 
@@ -167,6 +178,7 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
 		// Redirect to machine view
+		// Используем controlUC для получения данных станка
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
 		return cb.onViewMachine(c, svcID, machineID)
 
