@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/iwtcode/fanucClient/internal/domain/entities"
 	"github.com/iwtcode/fanucClient/internal/interfaces"
@@ -17,6 +19,10 @@ type CallbackHandler struct {
 	settingsUC   interfaces.SettingsUsecase
 	monitoringUC interfaces.MonitoringUsecase
 	cmdHandler   *CommandHandler
+
+	// liveSessions хранит функции отмены контекста для активных Live-сессий пользователей.
+	// Ключ: int64 (UserID), Значение: context.CancelFunc
+	liveSessions sync.Map
 }
 
 func NewCallbackHandler(menu *Menu, sUC interfaces.SettingsUsecase, mUC interfaces.MonitoringUsecase, cmd *CommandHandler) *CallbackHandler {
@@ -84,6 +90,10 @@ func (h *CallbackHandler) handleDynamicCallback(c tele.Context, data string) err
 		return h.onViewTarget(c, targetID)
 	case "check_msg":
 		return h.onCheckMessage(c, targetID)
+	case "live_mode":
+		return h.onLiveModeStart(c, targetID)
+	case "stop_live":
+		return h.onStopLive(c, targetID)
 	case "del_target":
 		return h.onDeleteTarget(c, targetID)
 	}
@@ -93,7 +103,8 @@ func (h *CallbackHandler) handleDynamicCallback(c tele.Context, data string) err
 // --- Specific Handlers ---
 
 func (h *CallbackHandler) onListTargets(c tele.Context) error {
-	// Сбрасываем состояние FSM
+	h.stopUserLiveSession(c.Sender().ID)
+
 	h.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
 
 	targets, err := h.settingsUC.GetTargets(c.Sender().ID)
@@ -104,9 +115,6 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 	text := fmt.Sprintf("📋 <b>Ваши настройки (%d)</b>\n\nВыберите настройку для проверки или создайте новую.", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
 
-	// ИСПРАВЛЕНИЕ:
-	// Если вызов пришел через Callback (Inline кнопка), мы редактируем сообщение.
-	// Если через Reply кнопку (текст), мы отправляем новое.
 	if c.Callback() != nil {
 		return c.Edit(text, markup)
 	}
@@ -114,6 +122,8 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 }
 
 func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
+	h.stopUserLiveSession(c.Sender().ID)
+
 	t, err := h.settingsUC.GetTargetByID(targetID)
 	if err != nil {
 		return h.onListTargets(c)
@@ -136,6 +146,7 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 }
 
 func (h *CallbackHandler) onDeleteTarget(c tele.Context, targetID uint) error {
+	h.stopUserLiveSession(c.Sender().ID)
 	err := h.settingsUC.DeleteTarget(c.Sender().ID, targetID)
 	if err != nil {
 		c.Respond(&tele.CallbackResponse{Text: "Error deleting target"})
@@ -164,7 +175,113 @@ func (h *CallbackHandler) onCheckMessage(c tele.Context, targetID uint) error {
 	return c.Edit(text, backMarkup)
 }
 
+// --- Live Mode Handlers ---
+
+func (h *CallbackHandler) onLiveModeStart(c tele.Context, targetID uint) error {
+	userID := c.Sender().ID
+
+	h.stopUserLiveSession(userID)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	h.liveSessions.Store(userID, cancel)
+
+	target, err := h.settingsUC.GetTargetByID(targetID)
+	if err != nil {
+		return c.Send("❌ Target not found")
+	}
+
+	// Показываем сообщение о загрузке, чтобы пользователь видел реакцию сразу
+	initialText := fmt.Sprintf("🔴 <b>LIVE MODE: %s</b>\n\n⏳ Подключение...", target.Name)
+	markup := h.menu.BuildLiveView(targetID)
+
+	if err := c.Edit(initialText, markup); err != nil {
+		return err
+	}
+
+	go h.runLiveUpdateLoop(ctx, c, targetID, target.Name)
+
+	return nil
+}
+
+func (h *CallbackHandler) onStopLive(c tele.Context, targetID uint) error {
+	h.stopUserLiveSession(c.Sender().ID)
+	return h.onViewTarget(c, targetID)
+}
+
+func (h *CallbackHandler) runLiveUpdateLoop(ctx context.Context, c tele.Context, targetID uint, targetName string) {
+	ticker := time.NewTicker(3 * time.Second)
+	defer ticker.Stop()
+
+	var lastContent string
+
+	// Определяем функцию обновления, чтобы вызвать её сразу и в цикле
+	update := func() {
+		fetchCtx, cancelFetch := context.WithTimeout(context.Background(), 5*time.Second)
+		msgRaw, err := h.monitoringUC.FetchLastKafkaMessage(fetchCtx, targetID)
+		cancelFetch()
+
+		// Если контекст уже отменен (пользователь вышел пока шел запрос), не обновляем
+		if ctx.Err() != nil {
+			return
+		}
+
+		var displayText string
+		timestamp := time.Now().Format("15:04:05")
+
+		if err != nil {
+			displayText = fmt.Sprintf("🔴 <b>LIVE MODE: %s</b>\nUpdated: %s\n\n❌ <b>Error:</b> %s", targetName, timestamp, err.Error())
+		} else {
+			prettyMsg := prettyPrintJSON(msgRaw)
+			if len(prettyMsg) > 3500 {
+				prettyMsg = prettyMsg[:3500] + "\n...[truncated]"
+			}
+			displayText = fmt.Sprintf("🔴 <b>LIVE MODE: %s</b>\nUpdated: %s\n\n<pre>%s</pre>", targetName, timestamp, prettyMsg)
+		}
+
+		// Избегаем ошибки "message is not modified"
+		if displayText == lastContent {
+			return
+		}
+
+		markup := h.menu.BuildLiveView(targetID)
+		if err := c.Edit(displayText, markup); err != nil {
+			if strings.Contains(err.Error(), "message to edit not found") || strings.Contains(err.Error(), "chat not found") {
+				// Если сообщение удалено или чат недоступен — останавливаем цикл
+				h.stopUserLiveSession(c.Sender().ID)
+			} else {
+				fmt.Printf("Live edit warning (user %d): %v\n", c.Sender().ID, err)
+			}
+		} else {
+			lastContent = displayText
+		}
+	}
+
+	// 1. Вызываем обновление СРАЗУ (убирает задержку в 3 секунды)
+	update()
+
+	// 2. Запускаем цикл
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			update()
+		}
+	}
+}
+
+func (h *CallbackHandler) stopUserLiveSession(userID int64) {
+	if val, ok := h.liveSessions.Load(userID); ok {
+		cancelFunc := val.(context.CancelFunc)
+		cancelFunc()
+		h.liveSessions.Delete(userID)
+	}
+}
+
+// --- Wizard Handlers ---
+
 func (h *CallbackHandler) onAddTargetStart(c tele.Context) error {
+	h.stopUserLiveSession(c.Sender().ID)
 	h.settingsUC.SetState(c.Sender().ID, entities.StateWaitingName)
 	return c.Edit("🖊 <b>Шаг 1/4: Название</b>\n\nВведите понятное имя для этого станка (например, 'Токарный 1'):", h.menu.BuildCancel())
 }

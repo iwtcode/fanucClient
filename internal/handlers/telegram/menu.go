@@ -27,7 +27,11 @@ type Menu struct {
 
 	// Inline Target Actions
 	BtnCheckMsg tele.Btn
+	BtnLiveMode tele.Btn // Новая кнопка
 	BtnDelete   tele.Btn
+
+	// Live Mode Controls
+	BtnStopLive tele.Btn // Кнопка остановки
 }
 
 func NewMenu() *Menu {
@@ -51,8 +55,11 @@ func NewMenu() *Menu {
 	btnBack := inlineMain.Data("🔙 Назад", "back_to_list")
 	btnCancelWizard := inlineMain.Data("🚫 Отмена", "cancel_wizard")
 
-	btnCheckMsg := inlineMain.Data("📨 Проверить", "check_msg")
+	btnCheckMsg := inlineMain.Data("📨 Последнее сообщение", "check_msg")
+	btnLiveMode := inlineMain.Data("🔴 Live Mode", "live_mode")
 	btnDelete := inlineMain.Data("🗑 Удалить", "del_target")
+
+	btnStopLive := inlineMain.Data("⏹ Стоп", "stop_live")
 
 	return &Menu{
 		ReplyMain:       replyMain,
@@ -65,7 +72,9 @@ func NewMenu() *Menu {
 		BtnBack:         btnBack,
 		BtnCancelWizard: btnCancelWizard,
 		BtnCheckMsg:     btnCheckMsg,
+		BtnLiveMode:     btnLiveMode,
 		BtnDelete:       btnDelete,
+		BtnStopLive:     btnStopLive,
 	}
 }
 
@@ -112,16 +121,31 @@ func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.Reply
 func (m *Menu) BuildTargetView(targetID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 
+	// Пересоздаем кнопки с payload, так как ID меняется
 	btnCheck := markup.Data("📨 Последнее сообщение", fmt.Sprintf("check_msg:%d", targetID))
+	btnLive := markup.Data("🔴 Live Mode", fmt.Sprintf("live_mode:%d", targetID))
 	btnDel := markup.Data("🗑 Удалить подключение", fmt.Sprintf("del_target:%d", targetID))
 
 	markup.Inline(
 		markup.Row(btnCheck),
+		markup.Row(btnLive), // Добавляем Live Mode
 		markup.Row(btnDel),
 		markup.Row(m.BtnBack),
 		markup.Row(m.BtnHomeInline),
 	)
 
+	return markup
+}
+
+// BuildLiveView создает меню для режима Live (только кнопка Стоп)
+func (m *Menu) BuildLiveView(targetID uint) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	// Передаем targetID в stop_live, чтобы знать куда вернуться
+	btnStop := markup.Data("⏹ Стоп", fmt.Sprintf("stop_live:%d", targetID))
+
+	markup.Inline(
+		markup.Row(btnStop),
+	)
 	return markup
 }
 

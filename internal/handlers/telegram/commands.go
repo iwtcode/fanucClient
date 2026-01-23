@@ -73,7 +73,7 @@ func (h *CommandHandler) OnWho(c tele.Context) error {
 	var msg strings.Builder
 
 	// Заголовок профиля
-	msg.WriteString("🪪 <b>Профиль оператора</b>\n\n")
+	msg.WriteString("🪪 <b>Профиль</b>\n\n")
 	msg.WriteString(fmt.Sprintf("🆔 ID: <code>%d</code>\n", u.ID))
 	msg.WriteString(fmt.Sprintf("👷 Имя: <b>%s</b>\n", u.FirstName))
 	// ИЗМЕНЕНИЕ ЗДЕСЬ: FSM -> State
