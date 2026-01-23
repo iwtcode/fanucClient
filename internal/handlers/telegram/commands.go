@@ -39,9 +39,9 @@ func (h *CommandHandler) OnStart(c tele.Context) error {
 		return c.Send(fmt.Sprintf("⚠️ Error registering user: %s", err.Error()))
 	}
 
-	text := "👋 <b>Fanuc Client Configurator</b>\n\n" +
-		"Главное меню управления.\n" +
-		"Используйте кнопки ниже для навигации."
+	text := "👋 <b>Fanuc Client</b>\n\n" +
+		"Главное меню управления подключениями\n" +
+		"Используйте кнопки ниже для навигации"
 
 	inlineMarkup := h.menu.BuildMainMenu()
 
@@ -117,7 +117,7 @@ func (h *CommandHandler) showTargetsList(c tele.Context) error {
 		return c.Send("Error fetching targets: " + err.Error())
 	}
 
-	text := fmt.Sprintf("📋 <b>Ваши настройки (%d)</b>\n\nВыберите настройку для проверки или создайте новую.", len(targets))
+	text := fmt.Sprintf("📋 <b>Ваши подключения (%d)</b>\n\nВыберите подключение или создайте новое", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
 
 	return c.Send(text, markup)

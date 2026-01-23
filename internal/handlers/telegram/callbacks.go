@@ -112,7 +112,7 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 		return c.Send("Error fetching targets: " + err.Error())
 	}
 
-	text := fmt.Sprintf("📋 <b>Ваши настройки (%d)</b>\n\nВыберите настройку для проверки или создайте новую.", len(targets))
+	text := fmt.Sprintf("📋 <b>Ваши подключения (%d)</b>\n\nВыберите подключение или создайте новое", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
 
 	if c.Callback() != nil {

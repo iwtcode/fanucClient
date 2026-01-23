@@ -39,7 +39,7 @@ func NewMenu() *Menu {
 	inlineMain := &tele.ReplyMarkup{}
 
 	// Reply Buttons (Названия синхронизированы с Inline)
-	btnTargets := replyMain.Text("📋 Управление подключениями")
+	btnTargets := replyMain.Text("📋 Управление Kafka")
 	btnWho := replyMain.Text("👤 Профиль")
 	btnHome := replyMain.Text("🏠 В начало")
 
@@ -83,7 +83,7 @@ func (m *Menu) BuildMainMenu() *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 
 	// Используем те же названия, что и в Reply
-	btnTargets := markup.Data("📋 Управление подключениями", "targets_list")
+	btnTargets := markup.Data("📋 Управление Kafka", "targets_list")
 	btnWho := markup.Data("👤 Профиль", "who_btn")
 
 	markup.Inline(
