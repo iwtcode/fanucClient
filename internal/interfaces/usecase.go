@@ -15,7 +15,11 @@ type SettingsUsecase interface {
 	// Context Helpers for Wizards
 	SetContextSvcID(userID int64, svcID uint) error
 	SetContextMachineID(userID int64, machineID string) error
-	SetDraftConnIP(userID int64, ip string) error
+
+	// Connection Wizard Steps
+	SetDraftConnEndpoint(userID int64, endpoint string) error
+	SetDraftConnTimeout(userID int64, timeout int) error
+	SetDraftConnModel(userID int64, model string) error
 
 	// Kafka Targets Management
 	SetDraftName(id int64, name string) error
@@ -41,7 +45,8 @@ type MonitoringUsecase interface {
 
 type ControlUsecase interface {
 	// Machine Management
-	CreateMachine(ctx context.Context, svcID uint, endpoint, series string) (*fanucService.MachineDTO, error)
+	// CreateMachine теперь принимает полный набор параметров
+	CreateMachine(ctx context.Context, svcID uint, req fanucService.ConnectionRequest) (*fanucService.MachineDTO, error)
 	ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error)
 	GetMachine(ctx context.Context, svcID uint, machineID string) (*fanucService.MachineDTO, error)
 	DeleteMachine(ctx context.Context, svcID uint, machineID string) error

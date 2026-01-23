@@ -210,10 +210,19 @@ func (h *CallbackHandler) onListServiceMachines(c tele.Context, svcID uint) erro
 
 func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID string) error {
 	c.Notify(tele.Typing)
+
+	// Мы полагаемся на то, что обновленный клиент вернет данные машины,
+	// даже если API вернет ошибку (например, 503 или 500), но в теле ответа будет JSON с данными.
 	machine, err := h.controlUC.GetMachine(context.Background(), svcID, machineID)
-	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error refreshing machine"})
-		// Fallback to list
+
+	// Если машина nil — значит, данных действительно нет (404 или фатальная ошибка парсинга)
+	if machine == nil {
+		// Можно добавить уведомление
+		safeErr := "Unknown error"
+		if err != nil {
+			safeErr = err.Error()
+		}
+		c.Respond(&tele.CallbackResponse{Text: "Failed to load machine: " + safeErr})
 		return h.onListServiceMachines(c, svcID)
 	}
 
@@ -221,8 +230,9 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 	safeModel := html.EscapeString(machine.Model)
 	safeSeries := html.EscapeString(machine.Series)
 
+	// Иконка статуса: если была ошибка API или статус явно не connected
 	statusIcon := "🟢"
-	if machine.Status != "connected" {
+	if err != nil || machine.Status != "connected" {
 		statusIcon = "🔴"
 	}
 
@@ -230,17 +240,24 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 		"ID: <code>%s</code>\n"+
 		"Address: <code>%s</code>\n"+
 		"Model: %s (Series: %s)\n"+
+		"Timeout: %d ms\n"+
 		"Status: %s <b>%s</b>\n"+
 		"Mode: <b>%s</b>",
-		safeModel, machine.ID, safeEP, safeModel, safeSeries, statusIcon, machine.Status, machine.Mode)
+		safeModel, machine.ID, safeEP, safeModel, safeSeries, machine.Timeout, statusIcon, machine.Status, machine.Mode)
 
 	if machine.Mode == "polling" {
 		text += fmt.Sprintf("\nPolling Interval: %d ms", machine.Interval)
 	}
 
+	// Если есть ошибка API (например, таймаут проверки), выводим её текстом,
+	// но само меню отображаем, чтобы пользователь мог удалить станок или отключить опрос.
+	if err != nil {
+		safeErr := html.EscapeString(err.Error())
+		text += fmt.Sprintf("\n\n⚠️ <b>Warning:</b>\n%s", safeErr)
+	}
+
 	markup := h.menu.BuildMachineView(svcID, *machine)
 
-	// Адаптивное поведение: если это Callback (кнопка) - редактируем, если нет (текст) - отправляем
 	if c.Callback() != nil {
 		return c.Edit(text, markup)
 	}
@@ -252,13 +269,14 @@ func (h *CallbackHandler) onAddConnectionStart(c tele.Context, svcID uint) error
 	h.settingsUC.SetState(userID, entities.StateWaitingConnEndpoint)
 	h.settingsUC.SetContextSvcID(userID, svcID)
 
-	return c.Edit("🔌 <b>Шаг 1/2: Endpoint</b>\n\nВведите IP адрес и порт станка (например: 192.168.1.10:8193):", h.menu.BuildCancel())
+	return c.Edit("🔌 <b>Шаг 1/4: Endpoint</b>\n\nВведите IP адрес и порт станка (например: 192.168.1.10:8193):", h.menu.BuildCancel())
 }
 
 func (h *CallbackHandler) onDeleteConnection(c tele.Context, svcID uint, machineID string) error {
 	c.Notify(tele.Typing)
 	err := h.controlUC.DeleteMachine(context.Background(), svcID, machineID)
 	if err != nil {
+		// Ошибку покажем тостом, но вернемся в список, чтобы обновить состояние
 		c.Respond(&tele.CallbackResponse{Text: "Error: " + err.Error()})
 	} else {
 		c.Respond(&tele.CallbackResponse{Text: "Connection deleted"})
@@ -279,11 +297,12 @@ func (h *CallbackHandler) onStopPoll(c tele.Context, svcID uint, machineID strin
 	c.Notify(tele.Typing)
 	err := h.controlUC.StopPolling(context.Background(), svcID, machineID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error stopping polling"})
+		// Возможно станок недоступен, но сервис должен обработать остановку опроса корректно (удалить из памяти)
+		c.Respond(&tele.CallbackResponse{Text: "Error stopping polling: " + err.Error()})
 	} else {
 		c.Respond(&tele.CallbackResponse{Text: "Polling stopped"})
 	}
-	// Refresh view
+	// Обновляем вид станка
 	return h.onViewMachine(c, svcID, machineID)
 }
 
@@ -295,7 +314,7 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 		c.Respond(&tele.CallbackResponse{Text: "Error getting program"})
 		safeErr := html.EscapeString(err.Error())
 
-		// Rebuild "Back" button to stay on error screen or go back
+		// Кнопка назад, чтобы не застрять
 		backMarkup := &tele.ReplyMarkup{}
 		backMarkup.Inline(backMarkup.Row(backMarkup.Data("🔙 Back", fmt.Sprintf("vm:%d:%s", svcID, machineID))))
 
@@ -305,7 +324,6 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 		return c.Send(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
 	}
 
-	// Создаем документ из строки
 	doc := &tele.Document{
 		File:     tele.FromReader(strings.NewReader(prog)),
 		FileName: "GCODE.NC",
@@ -313,13 +331,10 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 		MIME:     "text/plain",
 	}
 
-	// Отправляем файл НОВЫМ сообщением
 	if err := c.Send(doc); err != nil {
 		return c.Edit("❌ Failed to send file: " + err.Error())
 	}
 
-	// Возвращаем исходное сообщение (меню) в состояние просмотра станка,
-	// чтобы у пользователя остался интерфейс управления.
 	return h.onViewMachine(c, svcID, machineID)
 }
 

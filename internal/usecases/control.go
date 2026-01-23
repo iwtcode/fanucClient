@@ -28,17 +28,21 @@ func (u *controlUsecase) getServiceConfig(svcID uint) (string, string, error) {
 	return svc.BaseURL, svc.APIKey, nil
 }
 
-func (u *controlUsecase) CreateMachine(ctx context.Context, svcID uint, endpoint, series string) (*fanucService.MachineDTO, error) {
+func (u *controlUsecase) CreateMachine(ctx context.Context, svcID uint, req fanucService.ConnectionRequest) (*fanucService.MachineDTO, error) {
 	baseURL, apiKey, err := u.getServiceConfig(svcID)
 	if err != nil {
 		return nil, err
 	}
 
-	req := fanucService.ConnectionRequest{
-		Endpoint: endpoint,
-		Series:   series,
-		Timeout:  5000,
-		Model:    "CreatedByBot",
+	// Если Model/Series не заданы, устанавливаем дефолты (хотя сервис тоже имеет дефолты)
+	if req.Model == "" {
+		req.Model = "Unknown"
+	}
+	if req.Series == "" {
+		req.Series = "Unknown"
+	}
+	if req.Timeout <= 0 {
+		req.Timeout = 5000
 	}
 
 	return u.apiSvc.CreateConnection(ctx, baseURL, apiKey, req)

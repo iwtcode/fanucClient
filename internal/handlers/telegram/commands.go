@@ -8,6 +8,7 @@ import (
 
 	"github.com/iwtcode/fanucClient/internal/domain/entities"
 	"github.com/iwtcode/fanucClient/internal/interfaces"
+	"github.com/iwtcode/fanucService"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -102,10 +103,10 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		return c.Send("📂 <b>Шаг 3/4: Topic</b>", h.menu.BuildCancel())
 	case entities.StateWaitingTopic:
 		h.settingsUC.SetDraftTopic(userID, input)
-		return c.Send("🔑 <b>Шаг 4/4: Key (Optional)</b>\nОтправьте '0' или 'no' если не нужен.", h.menu.BuildCancel())
+		return c.Send("🔑 <b>Шаг 4/4: Key (Optional)</b>\nОтправьте '0' или '-' если не нужен.", h.menu.BuildCancel())
 	case entities.StateWaitingKey:
 		finalKey := input
-		if input == "0" || input == "-" || input == "no" {
+		if input == "0" || input == "-" {
 			finalKey = ""
 		}
 		h.settingsUC.SetDraftKeyAndSave(userID, finalKey)
@@ -132,20 +133,52 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 	// --- Machine Connection Wizard (Remote API) ---
 	case entities.StateWaitingConnEndpoint:
-		// Save IP temporarily in draft field
-		h.settingsUC.SetDraftConnIP(userID, input)
-		return c.Send("🤖 <b>Шаг 2/2: Series</b>\nВведите серию стойки (0i, 30i, 31i, 32i, 35i). Если не знаете, отправьте 'Unknown'.", h.menu.BuildCancel())
+		// Шаг 1: Endpoint
+		h.settingsUC.SetDraftConnEndpoint(userID, input)
+		return c.Send("⏱ <b>Шаг 2/4: Timeout (ms)</b>\nВведите таймаут соединения (например 5000).\nОтправьте '0' или '-' для значения по умолчанию (5000ms).", h.menu.BuildCancel())
+
+	case entities.StateWaitingConnTimeout:
+		// Шаг 2: Timeout
+		timeout := 5000
+		if input != "0" && input != "-" {
+			val, err := strconv.Atoi(input)
+			if err != nil || val < 0 {
+				return c.Send("⚠️ Введите корректное число или '-' для пропуска.")
+			}
+			timeout = val
+		}
+		h.settingsUC.SetDraftConnTimeout(userID, timeout)
+		return c.Send("🤖 <b>Шаг 3/4: Model</b>\nВведите название модели.\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
+
+	case entities.StateWaitingConnModel:
+		// Шаг 3: Model
+		model := input
+		if input == "0" || input == "-" {
+			model = "Unknown"
+		}
+		h.settingsUC.SetDraftConnModel(userID, model)
+		return c.Send("🔢 <b>Шаг 4/4: Series</b>\nВведите серию стойки (0i, 30i, 31i).\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnSeries:
+		// Шаг 4: Series и Финиш
 		series := input
-		// Get context variables
+		if input == "0" || input == "-" {
+			series = "Unknown"
+		}
+
+		// Собираем все данные из контекста пользователя
 		svcID := user.ContextSvcID
-		ip := user.DraftConnIP
+		req := fanucService.ConnectionRequest{
+			Endpoint: user.DraftConnEndpoint,
+			Timeout:  user.DraftConnTimeout,
+			Model:    user.DraftConnModel,
+			Series:   series,
+		}
 
 		c.Send("⏳ Creating connection on remote service...")
 
 		// Call UseCase
-		_, err := h.controlUC.CreateMachine(context.Background(), svcID, ip, series)
+		_, err := h.controlUC.CreateMachine(context.Background(), svcID, req)
 		if err != nil {
 			c.Send(fmt.Sprintf("❌ Error creating connection: %v", err))
 		} else {
@@ -154,7 +187,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
 		// Redirect to machine list
-		// Используем controlUC для отображения
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
 		return cb.onListServiceMachines(c, svcID)
 
@@ -178,7 +210,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
 		// Redirect to machine view
-		// Используем controlUC для получения данных станка
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
 		return cb.onViewMachine(c, svcID, machineID)
 

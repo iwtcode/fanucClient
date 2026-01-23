@@ -39,10 +39,26 @@ func (u *settingsUsecase) SetContextMachineID(userID int64, machineID string) er
 	return u.repo.UpdateDraft(userID, map[string]interface{}{"context_machine_id": machineID})
 }
 
-func (u *settingsUsecase) SetDraftConnIP(userID int64, ip string) error {
+// --- Connection Wizard Steps ---
+
+func (u *settingsUsecase) SetDraftConnEndpoint(userID int64, endpoint string) error {
 	return u.repo.UpdateDraft(userID, map[string]interface{}{
-		"draft_conn_ip": ip,
-		"state":         entities.StateWaitingConnSeries,
+		"draft_conn_endpoint": endpoint,
+		"state":               entities.StateWaitingConnTimeout,
+	})
+}
+
+func (u *settingsUsecase) SetDraftConnTimeout(userID int64, timeout int) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{
+		"draft_conn_timeout": timeout,
+		"state":              entities.StateWaitingConnModel,
+	})
+}
+
+func (u *settingsUsecase) SetDraftConnModel(userID int64, model string) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{
+		"draft_conn_model": model,
+		"state":            entities.StateWaitingConnSeries,
 	})
 }
 
