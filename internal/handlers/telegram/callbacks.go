@@ -327,7 +327,7 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 	doc := &tele.Document{
 		File:     tele.FromReader(strings.NewReader(prog)),
 		FileName: "GCODE.NC",
-		Caption:  fmt.Sprintf("📄 Control program\nid: <code>%s<code> ", machineID),
+		Caption:  fmt.Sprintf("📄 Control program\nID: <code>%s</code> ", machineID),
 		MIME:     "text/plain",
 	}
 
