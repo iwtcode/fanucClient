@@ -1,10 +1,16 @@
 package interfaces
 
-import "context"
+import (
+	"context"
+
+	"github.com/iwtcode/fanucService"
+)
 
 type KafkaReader interface {
-	// GetLastMessage подключается к указанному брокеру и топику.
-	// Если key != "", ищет последнее сообщение с этим ключом (сканируя конец топика).
-	// Если key == "", возвращает самое последнее сообщение в топике.
 	GetLastMessage(ctx context.Context, broker, topic, key string) (string, error)
+}
+
+type FanucApiService interface {
+	// GetConnections возвращает список подключений с удаленного сервиса
+	GetConnections(ctx context.Context, baseURL, apiKey string) ([]fanucService.MachineDTO, error)
 }

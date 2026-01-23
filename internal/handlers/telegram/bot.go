@@ -35,7 +35,7 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 	// Устанавливаем команды для меню (удалит старые ping/time)
 	err = b.SetCommands([]tele.Command{
 		{Text: "start", Description: "Главное меню"},
-		{Text: "whoami", Description: "Профиль пользователя"},
+		{Text: "profile", Description: "Профиль пользователя"},
 	})
 	if err != nil {
 		log.Printf("⚠️ Не удалось обновить список команд: %v", err)

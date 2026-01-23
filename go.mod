@@ -1,8 +1,9 @@
 module github.com/iwtcode/fanucClient
 
-go 1.24.2
+go 1.24.4
 
 require (
+	github.com/iwtcode/fanucService v1.0.7
 	github.com/joho/godotenv v1.5.1
 	github.com/segmentio/kafka-go v0.4.49
 	go.uber.org/fx v1.24.0
@@ -23,8 +24,8 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.31.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.35.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 )

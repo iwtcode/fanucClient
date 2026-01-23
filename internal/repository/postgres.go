@@ -12,7 +12,7 @@ import (
 )
 
 func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
-	// 1. Подключаемся к стандартной БД 'postgres', чтобы проверить/создать целевую БД
+	// 1. Check/Create DB logic
 	dsnRoot := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword)
 
@@ -24,7 +24,6 @@ func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
 	}
 
 	var exists bool
-	// Проверяем, существует ли база данных
 	checkQuery := fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = '%s')", cfg.DBName)
 	if err := rootDB.Raw(checkQuery).Scan(&exists).Error; err != nil {
 		log.Fatalf("failed to check db existence: %v", err)
@@ -32,19 +31,15 @@ func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
 
 	if !exists {
 		log.Printf("Database %s does not exist. Creating...", cfg.DBName)
-		// CREATE DATABASE не может работать внутри транзакции
 		if err := rootDB.Exec(fmt.Sprintf("CREATE DATABASE %s", cfg.DBName)).Error; err != nil {
 			log.Fatalf("failed to create database: %v", err)
 		}
 	}
 
-	// Закрываем соединение с rootDB (получаем *sql.DB)
-	sqlDB, err := rootDB.DB()
-	if err == nil {
-		sqlDB.Close()
-	}
+	sqlDB, _ := rootDB.DB()
+	sqlDB.Close()
 
-	// 2. Подключаемся к целевой базе данных
+	// 2. Connect to App DB
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
 
@@ -53,8 +48,12 @@ func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
 		log.Fatalf("Failed to connect to application database: %v", err)
 	}
 
-	// 3. Автомиграция
-	if err := db.AutoMigrate(&entities.User{}, &entities.MonitoringTarget{}); err != nil {
+	// 3. Migrate all entities including FanucService
+	if err := db.AutoMigrate(
+		&entities.User{},
+		&entities.MonitoringTarget{},
+		&entities.FanucService{},
+	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 

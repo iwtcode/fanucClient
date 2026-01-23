@@ -19,18 +19,17 @@ func NewRouter(menu *Menu, cmd *CommandHandler, cb *CallbackHandler) *Router {
 }
 
 func (r *Router) Register(b *tele.Bot) {
-	// --- Commands ---
+	// Commands
 	b.Handle("/start", r.commands.OnStart)
-	b.Handle("/whoami", r.commands.OnWho) // Добавили обработчик для команды из меню
+	b.Handle("/profile", r.commands.OnWho)
 
-	// --- Reply Keyboard Buttons ---
+	// Reply Keyboard
 	b.Handle(&r.menu.BtnTargets, r.callbacks.onListTargets)
+	b.Handle(&r.menu.BtnServices, r.callbacks.onListServices)
 	b.Handle(&r.menu.BtnWho, r.commands.OnWho)
 	b.Handle(&r.menu.BtnHome, r.commands.OnStart)
 
-	// --- Callback Queries (Inline Buttons) ---
+	// Callbacks & Text
 	b.Handle(tele.OnCallback, r.callbacks.OnCallback)
-
-	// --- Text Input (FSM) ---
 	b.Handle(tele.OnText, r.commands.OnText)
 }

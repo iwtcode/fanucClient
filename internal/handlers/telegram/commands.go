@@ -21,12 +21,8 @@ func NewCommandHandler(menu *Menu, settingsUC interfaces.SettingsUsecase) *Comma
 	}
 }
 
-// OnStart обрабатывает команду /start и кнопку "Домой"
 func (h *CommandHandler) OnStart(c tele.Context) error {
-	// Сброс состояния при возврате в главное меню
-	if err := h.settingsUC.SetState(c.Sender().ID, entities.StateIdle); err != nil {
-		return c.Send("⚠️ Error resetting state: " + err.Error())
-	}
+	h.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
 
 	user := &entities.User{
 		ID:        c.Sender().ID,
@@ -34,172 +30,90 @@ func (h *CommandHandler) OnStart(c tele.Context) error {
 		UserName:  c.Sender().Username,
 		State:     entities.StateIdle,
 	}
+	h.settingsUC.RegisterUser(user)
 
-	if err := h.settingsUC.RegisterUser(user); err != nil {
-		return c.Send(fmt.Sprintf("⚠️ Error registering user: %s", err.Error()))
-	}
-
-	text := "👋 <b>Fanuc Client</b>\n\n" +
-		"Главное меню управления подключениями\n" +
-		"Используйте кнопки ниже для навигации"
-
-	inlineMarkup := h.menu.BuildMainMenu()
-
-	// Если вызов пришел из Callback (кнопка "В начало"), редактируем сообщение
+	text := "👋 <b>Fanuc Client</b>\n\nГлавное меню."
 	if c.Callback() != nil {
-		return c.Edit(text, inlineMarkup)
+		return c.Edit(text, h.menu.BuildMainMenu())
 	}
-	// Иначе отправляем новое с клавиатурой
-	return c.Send(text, h.menu.ReplyMain, inlineMarkup)
+	return c.Send(text, h.menu.ReplyMain, h.menu.BuildMainMenu())
 }
 
-// OnWho обрабатывает запрос информации о пользователе
 func (h *CommandHandler) OnWho(c tele.Context) error {
-	userID := c.Sender().ID
-
-	// 1. Получаем пользователя
-	u, err := h.settingsUC.GetUser(userID)
+	u, err := h.settingsUC.GetUser(c.Sender().ID)
 	if err != nil {
-		return c.Send("❌ Ошибка получения профиля.")
+		return c.Send("Error getting user")
 	}
+	text := fmt.Sprintf("👤 <b>Profile</b>\nID: %d\nState: %s", u.ID, u.State)
 
-	// 2. Получаем список целей (таргетов)
-	targets, err := h.settingsUC.GetTargets(userID)
-	if err != nil {
-		targets = []entities.MonitoringTarget{}
-	}
+	targets, _ := h.settingsUC.GetTargets(u.ID)
+	services, _ := h.settingsUC.GetServices(u.ID)
 
-	// 3. Формируем сообщение
-	var msg strings.Builder
-
-	// Заголовок профиля
-	msg.WriteString("🪪 <b>Профиль</b>\n\n")
-	msg.WriteString(fmt.Sprintf("🆔 ID: <code>%d</code>\n", u.ID))
-	msg.WriteString(fmt.Sprintf("👷 Имя: <b>%s</b>\n", u.FirstName))
-	// ИЗМЕНЕНИЕ ЗДЕСЬ: FSM -> State
-	msg.WriteString(fmt.Sprintf("⚙️ State: <code>%s</code>\n\n", u.State))
-
-	// Блок подключений
-	msg.WriteString(fmt.Sprintf("📡 <b>Активные подключения (%d):</b>\n", len(targets)))
-
-	if len(targets) == 0 {
-		msg.WriteString("<i>— Список пуст. Добавьте станки через меню.</i>")
-	} else {
-		for i, t := range targets {
-			keyDisplay := t.Key
-			if keyDisplay == "" {
-				keyDisplay = "ALL (Без фильтра)"
-			}
-
-			// Красивое форматирование списка
-			msg.WriteString(fmt.Sprintf("\n<b>%d. 🏭 %s</b>\n", i+1, t.Name))
-			msg.WriteString(fmt.Sprintf("   ├ 🌐 <code>%s</code>\n", t.Broker))
-			msg.WriteString(fmt.Sprintf("   ├ 📂 <code>%s</code>\n", t.Topic))
-			msg.WriteString(fmt.Sprintf("   └ 🔑 <code>%s</code>", keyDisplay))
-		}
-	}
-
-	markup := h.menu.BuildWhoMenu()
+	text += fmt.Sprintf("\n\n📋 Kafka Targets: %d", len(targets))
+	text += fmt.Sprintf("\n🌐 API Services: %d", len(services))
 
 	if c.Callback() != nil {
-		return c.Edit(msg.String(), markup)
+		return c.Edit(text, h.menu.BuildWhoMenu())
 	}
-	return c.Send(msg.String(), markup)
+	return c.Send(text, h.menu.BuildWhoMenu())
 }
 
-// showTargetsList - вспомогательный метод для отображения списка целей (аналог в CallbackHandler)
-func (h *CommandHandler) showTargetsList(c tele.Context) error {
-	// Сбрасываем состояние
-	h.settingsUC.SetState(c.Sender().ID, entities.StateIdle)
-
-	targets, err := h.settingsUC.GetTargets(c.Sender().ID)
-	if err != nil {
-		return c.Send("Error fetching targets: " + err.Error())
-	}
-
-	text := fmt.Sprintf("📋 <b>Ваши подключения (%d)</b>\n\nВыберите подключение или создайте новое", len(targets))
-	markup := h.menu.BuildTargetsList(targets)
-
-	return c.Send(text, markup)
-}
-
-// OnText обрабатывает текстовый ввод (FSM)
 func (h *CommandHandler) OnText(c tele.Context) error {
 	userID := c.Sender().ID
 	user, err := h.settingsUC.GetUser(userID)
-	if err != nil || user == nil {
-		// Если пользователя нет в базе, отправляем на старт
+	if err != nil {
 		return h.OnStart(c)
 	}
 
 	input := strings.TrimSpace(c.Text())
 
-	// Проверяем, является ли текст командой меню.
+	// Menu Commands
 	switch input {
 	case h.menu.BtnHome.Text:
 		return h.OnStart(c)
 	case h.menu.BtnWho.Text:
 		return h.OnWho(c)
 	case h.menu.BtnTargets.Text:
-		return h.showTargetsList(c)
+		// Trigger callback logic for list
+		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListTargets(c)
+	case h.menu.BtnServices.Text:
+		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListServices(c)
 	}
 
+	// FSM
 	switch user.State {
+	// Kafka Wizard
 	case entities.StateWaitingName:
-		return h.processNameStep(c, userID, input)
-
+		h.settingsUC.SetDraftName(userID, input)
+		return c.Send("🔌 <b>Шаг 2/4: Broker (IP:PORT)</b>", h.menu.BuildCancel())
 	case entities.StateWaitingBroker:
-		return h.processBrokerStep(c, userID, input)
-
+		h.settingsUC.SetDraftBroker(userID, input)
+		return c.Send("📂 <b>Шаг 3/4: Topic</b>", h.menu.BuildCancel())
 	case entities.StateWaitingTopic:
-		return h.processTopicStep(c, userID, input)
-
+		h.settingsUC.SetDraftTopic(userID, input)
+		return c.Send("🔑 <b>Шаг 4/4: Key (Optional)</b>\nОтправьте '0' или 'no' если не нужен.", h.menu.BuildCancel())
 	case entities.StateWaitingKey:
-		return h.processKeyStep(c, userID, input, user.DraftName)
+		finalKey := input
+		if input == "0" || input == "-" || input == "no" {
+			finalKey = ""
+		}
+		h.settingsUC.SetDraftKeyAndSave(userID, finalKey)
+		c.Send("✅ Kafka Target Saved!")
+		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListTargets(c)
 
-	case entities.StateIdle:
-		return c.Send("🤖 Я ожидаю команды меню. Нажмите /start для сброса.", h.menu.ReplyMain)
+	// Service Wizard
+	case entities.StateWaitingSvcName:
+		h.settingsUC.SetDraftSvcName(userID, input)
+		return c.Send("🔗 <b>Шаг 2/3: Host (IP:PORT)</b>\nВведите адрес сервиса (без http://):", h.menu.BuildCancel())
+	case entities.StateWaitingSvcHost:
+		h.settingsUC.SetDraftSvcHost(userID, input)
+		return c.Send("🔐 <b>Шаг 3/3: API Key</b>\nВведите ключ доступа к сервису:", h.menu.BuildCancel())
+	case entities.StateWaitingSvcKey:
+		h.settingsUC.SetDraftSvcKeyAndSave(userID, input)
+		c.Send("✅ Service Saved!")
+		return (&CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}).onListServices(c)
 
 	default:
-		// Если состояние неизвестно, сбрасываем его
-		h.settingsUC.SetState(userID, entities.StateIdle)
-		return c.Send("⚠️ Неизвестное состояние. Сброс...", h.menu.ReplyMain)
+		return h.OnStart(c)
 	}
-}
-
-func (h *CommandHandler) processNameStep(c tele.Context, userID int64, input string) error {
-	if err := h.settingsUC.SetDraftName(userID, input); err != nil {
-		return c.Send("Error saving name.")
-	}
-	return c.Send("🔌 <b>Шаг 2/4: Брокер</b>\n\nВведите адрес брокера (IP:PORT):", h.menu.BuildCancel())
-}
-
-func (h *CommandHandler) processBrokerStep(c tele.Context, userID int64, input string) error {
-	if err := h.settingsUC.SetDraftBroker(userID, input); err != nil {
-		return c.Send("Error saving broker.")
-	}
-	return c.Send("📂 <b>Шаг 3/4: Топик</b>\n\nВведите название Kafka Topic:", h.menu.BuildCancel())
-}
-
-func (h *CommandHandler) processTopicStep(c tele.Context, userID int64, input string) error {
-	if err := h.settingsUC.SetDraftTopic(userID, input); err != nil {
-		return c.Send("Error saving topic.")
-	}
-	return c.Send("🔑 <b>Шаг 4/4: Ключ (Опционально)</b>\n\nВведите Kafka Key (например, IP станка) или отправьте '0', '-' или 'no', чтобы читать любые последние сообщения:", h.menu.BuildCancel())
-}
-
-func (h *CommandHandler) processKeyStep(c tele.Context, userID int64, input, draftName string) error {
-	finalKey := input
-	if input == "0" || input == "-" || input == "no" {
-		finalKey = ""
-	}
-
-	if err := h.settingsUC.SetDraftKeyAndSave(userID, finalKey); err != nil {
-		return c.Send("❌ Ошибка при сохранении: " + err.Error())
-	}
-
-	c.Send(fmt.Sprintf("✅ Настройка <b>%s</b> сохранена!", draftName))
-
-	// Показываем список таргетов после успешного сохранения
-	return h.showTargetsList(c)
 }

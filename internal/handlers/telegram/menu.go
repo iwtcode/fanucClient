@@ -8,87 +8,98 @@ import (
 )
 
 type Menu struct {
-	// Reply Main (Нижняя клавиатура)
-	ReplyMain  *tele.ReplyMarkup
-	BtnTargets tele.Btn
-	BtnWho     tele.Btn
-	BtnHome    tele.Btn
+	// Reply Main
+	ReplyMain   *tele.ReplyMarkup
+	BtnTargets  tele.Btn
+	BtnServices tele.Btn
+	BtnWho      tele.Btn
+	BtnHome     tele.Btn
 
-	// Inline Main (Меню в сообщении)
+	// Inline Main
 	InlineMain    *tele.ReplyMarkup
 	BtnHomeInline tele.Btn
 
-	// Inline Targets List
-	BtnAddTarget tele.Btn
-	BtnBack      tele.Btn
-
-	// Inline Wizard
+	// --- Kafka Targets ---
+	BtnAddTarget    tele.Btn
+	BtnBackTargets  tele.Btn
 	BtnCancelWizard tele.Btn
+	BtnCheckMsg     tele.Btn
+	BtnLiveMode     tele.Btn
+	BtnDelete       tele.Btn
+	BtnStopLive     tele.Btn
 
-	// Inline Target Actions
-	BtnCheckMsg tele.Btn
-	BtnLiveMode tele.Btn // Новая кнопка
-	BtnDelete   tele.Btn
-
-	// Live Mode Controls
-	BtnStopLive tele.Btn // Кнопка остановки
+	// --- Fanuc Services ---
+	BtnAddService  tele.Btn
+	BtnBackSvc     tele.Btn
+	BtnDeleteSvc   tele.Btn
+	BtnSvcMachines tele.Btn // Список подключений на сервисе
 }
 
 func NewMenu() *Menu {
 	replyMain := &tele.ReplyMarkup{ResizeKeyboard: true}
 	inlineMain := &tele.ReplyMarkup{}
 
-	// Reply Buttons (Названия синхронизированы с Inline)
-	btnTargets := replyMain.Text("📋 Управление Kafka")
+	// Reply Buttons
+	btnTargets := replyMain.Text("📋 Kafka Reader")
+	btnServices := replyMain.Text("🌐 API Services")
 	btnWho := replyMain.Text("👤 Профиль")
 	btnHome := replyMain.Text("🏠 В начало")
 
 	replyMain.Reply(
-		replyMain.Row(btnTargets, btnWho),
-		replyMain.Row(btnHome),
+		replyMain.Row(btnTargets, btnServices),
+		replyMain.Row(btnWho, btnHome),
 	)
 
-	// Inline Buttons
+	// Inline Buttons (Global)
 	btnHomeInline := inlineMain.Data("🏠 В начало", "home")
-
-	btnAddTarget := inlineMain.Data("➕ Добавить", "add_target")
-	btnBack := inlineMain.Data("🔙 Назад", "back_to_list")
 	btnCancelWizard := inlineMain.Data("🚫 Отмена", "cancel_wizard")
 
+	// Kafka
+	btnAddTarget := inlineMain.Data("➕ Kafka Target", "add_target")
+	btnBackTargets := inlineMain.Data("🔙 К списку Kafka", "targets_list")
 	btnCheckMsg := inlineMain.Data("📨 Последнее сообщение", "check_msg")
 	btnLiveMode := inlineMain.Data("🔴 Live Mode", "live_mode")
 	btnDelete := inlineMain.Data("🗑 Удалить", "del_target")
-
 	btnStopLive := inlineMain.Data("⏹ Стоп", "stop_live")
 
+	// Services
+	btnAddService := inlineMain.Data("➕ API Service", "add_service")
+	btnBackSvc := inlineMain.Data("🔙 К списку Сервисов", "services_list")
+	btnDeleteSvc := inlineMain.Data("🗑 Удалить сервис", "del_service")
+	btnSvcMachines := inlineMain.Data("🔌 Список станков", "svc_machines")
+
 	return &Menu{
-		ReplyMain:       replyMain,
-		InlineMain:      inlineMain,
-		BtnTargets:      btnTargets,
-		BtnWho:          btnWho,
-		BtnHome:         btnHome,
-		BtnHomeInline:   btnHomeInline,
+		ReplyMain:     replyMain,
+		InlineMain:    inlineMain,
+		BtnTargets:    btnTargets,
+		BtnServices:   btnServices,
+		BtnWho:        btnWho,
+		BtnHome:       btnHome,
+		BtnHomeInline: btnHomeInline,
+
+		// Kafka
 		BtnAddTarget:    btnAddTarget,
-		BtnBack:         btnBack,
+		BtnBackTargets:  btnBackTargets,
 		BtnCancelWizard: btnCancelWizard,
 		BtnCheckMsg:     btnCheckMsg,
 		BtnLiveMode:     btnLiveMode,
 		BtnDelete:       btnDelete,
 		BtnStopLive:     btnStopLive,
+
+		// Services
+		BtnAddService:  btnAddService,
+		BtnBackSvc:     btnBackSvc,
+		BtnDeleteSvc:   btnDeleteSvc,
+		BtnSvcMachines: btnSvcMachines,
 	}
 }
 
-// BuildMainMenu создает инлайн меню для команды /start
 func (m *Menu) BuildMainMenu() *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-
-	// Используем те же названия, что и в Reply
-	btnTargets := markup.Data("📋 Управление Kafka", "targets_list")
-	btnWho := markup.Data("👤 Профиль", "who_btn")
-
 	markup.Inline(
-		markup.Row(btnTargets),
-		markup.Row(btnWho),
+		markup.Row(markup.Data("📋 Kafka Reader", "targets_list")),
+		markup.Row(markup.Data("🌐 API Services", "services_list")),
+		markup.Row(markup.Data("👤 Профиль", "who_btn")),
 	)
 	return markup
 }
@@ -101,51 +112,74 @@ func (m *Menu) BuildWhoMenu() *tele.ReplyMarkup {
 	return markup
 }
 
+// --- Kafka Menus ---
+
 func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
-
 	for _, t := range targets {
-		// Отображаем имя цели в кнопке
 		btn := markup.Data(fmt.Sprintf("🔩 %s", t.Name), fmt.Sprintf("view_target:%d", t.ID))
 		rows = append(rows, markup.Row(btn))
 	}
-
 	rows = append(rows, markup.Row(m.BtnAddTarget))
 	rows = append(rows, markup.Row(m.BtnHomeInline))
-
 	markup.Inline(rows...)
 	return markup
 }
 
 func (m *Menu) BuildTargetView(targetID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-
-	// Пересоздаем кнопки с payload, так как ID меняется
-	btnCheck := markup.Data("📨 Последнее сообщение", fmt.Sprintf("check_msg:%d", targetID))
-	btnLive := markup.Data("🔴 Live Mode", fmt.Sprintf("live_mode:%d", targetID))
-	btnDel := markup.Data("🗑 Удалить подключение", fmt.Sprintf("del_target:%d", targetID))
+	btnCheck := markup.Data("📨 Msg", fmt.Sprintf("check_msg:%d", targetID))
+	btnLive := markup.Data("🔴 Live", fmt.Sprintf("live_mode:%d", targetID))
+	btnDel := markup.Data("🗑 Del", fmt.Sprintf("del_target:%d", targetID))
 
 	markup.Inline(
-		markup.Row(btnCheck),
-		markup.Row(btnLive), // Добавляем Live Mode
+		markup.Row(btnCheck, btnLive),
 		markup.Row(btnDel),
-		markup.Row(m.BtnBack),
-		markup.Row(m.BtnHomeInline),
+		markup.Row(m.BtnBackTargets),
 	)
-
 	return markup
 }
 
-// BuildLiveView создает меню для режима Live (только кнопка Стоп)
 func (m *Menu) BuildLiveView(targetID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-	// Передаем targetID в stop_live, чтобы знать куда вернуться
 	btnStop := markup.Data("⏹ Стоп", fmt.Sprintf("stop_live:%d", targetID))
+	markup.Inline(markup.Row(btnStop))
+	return markup
+}
+
+// --- Services Menus ---
+
+func (m *Menu) BuildServicesList(services []entities.FanucService) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	var rows []tele.Row
+	for _, s := range services {
+		btn := markup.Data(fmt.Sprintf("🌐 %s", s.Name), fmt.Sprintf("view_service:%d", s.ID))
+		rows = append(rows, markup.Row(btn))
+	}
+	rows = append(rows, markup.Row(m.BtnAddService))
+	rows = append(rows, markup.Row(m.BtnHomeInline))
+	markup.Inline(rows...)
+	return markup
+}
+
+func (m *Menu) BuildServiceView(svcID uint) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	btnList := markup.Data("🔌 Список станков", fmt.Sprintf("svc_machines:%d", svcID))
+	btnDel := markup.Data("🗑 Удалить сервис", fmt.Sprintf("del_service:%d", svcID))
 
 	markup.Inline(
-		markup.Row(btnStop),
+		markup.Row(btnList),
+		markup.Row(btnDel),
+		markup.Row(m.BtnBackSvc),
 	)
+	return markup
+}
+
+func (m *Menu) BuildBackToService(svcID uint) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	btnBack := markup.Data("🔙 Назад к сервису", fmt.Sprintf("view_service:%d", svcID))
+	markup.Inline(markup.Row(btnBack))
 	return markup
 }
 
