@@ -16,6 +16,11 @@ type UserRepository interface {
 	GetTargets(userID int64) ([]entities.MonitoringTarget, error)
 	GetTargetByID(targetID uint) (*entities.MonitoringTarget, error)
 
+	// Kafka Keys
+	AddKey(key *entities.MonitoringKey) error
+	DeleteKey(keyID uint) error
+	GetKeyByID(keyID uint) (*entities.MonitoringKey, error)
+
 	// Fanuc Services
 	AddService(svc *entities.FanucService) error
 	DeleteService(svcID uint, userID int64) error

@@ -48,10 +48,11 @@ func NewPostgresRepository(cfg *fanucClient.Config) *gorm.DB {
 		log.Fatalf("Failed to connect to application database: %v", err)
 	}
 
-	// 3. Migrate all entities including FanucService
+	// 3. Migrate all entities including MonitoringKey
 	if err := db.AutoMigrate(
 		&entities.User{},
 		&entities.MonitoringTarget{},
+		&entities.MonitoringKey{},
 		&entities.FanucService{},
 	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)

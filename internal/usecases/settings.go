@@ -39,6 +39,10 @@ func (u *settingsUsecase) SetContextMachineID(userID int64, machineID string) er
 	return u.repo.UpdateDraft(userID, map[string]interface{}{"context_machine_id": machineID})
 }
 
+func (u *settingsUsecase) SetContextTargetID(userID int64, targetID uint) error {
+	return u.repo.UpdateDraft(userID, map[string]interface{}{"context_target_id": targetID})
+}
+
 // --- Connection Wizard Steps ---
 
 func (u *settingsUsecase) SetDraftConnEndpoint(userID int64, endpoint string) error {
@@ -78,14 +82,7 @@ func (u *settingsUsecase) SetDraftBroker(id int64, broker string) error {
 	})
 }
 
-func (u *settingsUsecase) SetDraftTopic(id int64, topic string) error {
-	return u.repo.UpdateDraft(id, map[string]interface{}{
-		"draft_topic": topic,
-		"state":       entities.StateWaitingKey,
-	})
-}
-
-func (u *settingsUsecase) SetDraftKeyAndSave(id int64, key string) error {
+func (u *settingsUsecase) SetDraftTopicAndSave(id int64, topic string) error {
 	user, err := u.repo.GetByID(id)
 	if err != nil {
 		return err
@@ -95,8 +92,8 @@ func (u *settingsUsecase) SetDraftKeyAndSave(id int64, key string) error {
 		UserID: user.ID,
 		Name:   user.DraftName,
 		Broker: user.DraftBroker,
-		Topic:  user.DraftTopic,
-		Key:    key,
+		Topic:  topic,
+		// No keys initially
 	}
 
 	if err := u.repo.AddTarget(target); err != nil {
@@ -115,6 +112,33 @@ func (u *settingsUsecase) DeleteTarget(userID int64, targetID uint) error {
 
 func (u *settingsUsecase) GetTargetByID(targetID uint) (*entities.MonitoringTarget, error) {
 	return u.repo.GetTargetByID(targetID)
+}
+
+// --- Kafka Key Management ---
+
+func (u *settingsUsecase) AddKeyToTarget(userID int64, key string) error {
+	user, err := u.repo.GetByID(userID)
+	if err != nil {
+		return err
+	}
+
+	newKey := &entities.MonitoringKey{
+		TargetID: user.ContextTargetID,
+		Key:      key,
+	}
+
+	if err := u.repo.AddKey(newKey); err != nil {
+		return err
+	}
+	return u.repo.UpdateState(userID, entities.StateIdle)
+}
+
+func (u *settingsUsecase) DeleteKey(keyID uint) error {
+	return u.repo.DeleteKey(keyID)
+}
+
+func (u *settingsUsecase) GetKeyByID(keyID uint) (*entities.MonitoringKey, error) {
+	return u.repo.GetKeyByID(keyID)
 }
 
 // --- Services Wizard ---
@@ -140,7 +164,6 @@ func (u *settingsUsecase) SetDraftSvcKeyAndSave(id int64, key string) error {
 	}
 
 	host := strings.TrimSpace(user.DraftSvcHost)
-	// Добавляем схему, если пользователь не указал
 	if !strings.HasPrefix(host, "http://") && !strings.HasPrefix(host, "https://") {
 		host = "http://" + host
 	}

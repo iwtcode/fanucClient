@@ -15,9 +15,9 @@ func NewKafkaService() interfaces.KafkaReader {
 	return &kafkaService{}
 }
 
-func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, key string) (string, error) {
+func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFilter string) (string, string, error) {
 	if broker == "" || topic == "" {
-		return "", fmt.Errorf("broker or topic is empty")
+		return "", "", fmt.Errorf("broker or topic is empty")
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -26,26 +26,26 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, key st
 	// 1. Connect to partition 0 leader (Assuming single partition for simplicity or 0)
 	conn, err := kafka.DialLeader(dialCtx, "tcp", broker, topic, 0)
 	if err != nil {
-		return "", fmt.Errorf("failed to dial leader: %w", err)
+		return "", "", fmt.Errorf("failed to dial leader: %w", err)
 	}
 	defer conn.Close()
 
 	// 2. Get last offset
 	lastOffset, err := conn.ReadLastOffset()
 	if err != nil {
-		return "", fmt.Errorf("failed to read last offset: %w", err)
+		return "", "", fmt.Errorf("failed to read last offset: %w", err)
 	}
 
 	if lastOffset == 0 {
-		return "⚠️ Topic is empty", nil
+		return "", "⚠️ Topic is empty", nil
 	}
 
 	// 3. Determine scan range
-	// If key is present, we scan last 100 messages to find it.
+	// If key is present, we scan last 1000 messages to find it.
 	// If key is empty, we just take the last message.
 	scanDepth := int64(1)
-	if key != "" {
-		scanDepth = 100
+	if keyFilter != "" {
+		scanDepth = 1000
 	}
 
 	startOffset := lastOffset - scanDepth
@@ -54,7 +54,7 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, key st
 	}
 
 	if _, err := conn.Seek(startOffset, kafka.SeekAbsolute); err != nil {
-		return "", fmt.Errorf("failed to seek: %w", err)
+		return "", "", fmt.Errorf("failed to seek: %w", err)
 	}
 
 	// 4. Read batch
@@ -71,9 +71,9 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, key st
 			break // Batch finished or error
 		}
 
-		if key != "" {
+		if keyFilter != "" {
 			// If looking for a key, update foundMsg only if key matches
-			if string(m.Key) == key {
+			if string(m.Key) == keyFilter {
 				// We create a copy because m is reused in loop
 				msgCopy := m
 				foundMsg = &msgCopy
@@ -91,11 +91,11 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, key st
 	}
 
 	if foundMsg == nil {
-		if key != "" {
-			return fmt.Sprintf("⚠️ Message with key '%s' not found in last %d messages", key, scanDepth), nil
+		if keyFilter != "" {
+			return "", fmt.Sprintf("⚠️ Message with key '%s' not found in last %d messages", keyFilter, scanDepth), nil
 		}
-		return "⚠️ Could not read message", nil
+		return "", "⚠️ Could not read message", nil
 	}
 
-	return string(foundMsg.Value), nil
+	return string(foundMsg.Key), string(foundMsg.Value), nil
 }

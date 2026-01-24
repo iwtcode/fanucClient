@@ -12,7 +12,8 @@ const (
 	StateWaitingName   = "waiting_name"
 	StateWaitingBroker = "waiting_broker"
 	StateWaitingTopic  = "waiting_topic"
-	StateWaitingKey    = "waiting_key"
+	// Key is now added separately
+	StateWaitingNewKey = "waiting_new_key"
 
 	// Service Wizard (Registration of API)
 	StateWaitingSvcName = "waiting_svc_name"
@@ -41,16 +42,17 @@ type User struct {
 	DraftName   string `gorm:"size:255"`
 	DraftBroker string `gorm:"size:255"`
 	DraftTopic  string `gorm:"size:255"`
-	DraftKey    string `gorm:"size:255"`
+	// DraftKey removed, keys are added separately
 
 	// Draft fields for Service Wizard
 	DraftSvcName string `gorm:"size:255"`
 	DraftSvcHost string `gorm:"size:255"`
 	DraftSvcKey  string `gorm:"size:255"`
 
-	// Context fields for Remote API Operations
+	// Context fields
 	ContextSvcID     uint   `gorm:"default:0"` // ID сервиса в БД бота
 	ContextMachineID string `gorm:"size:255"`  // ID станка на удаленном сервисе
+	ContextTargetID  uint   `gorm:"default:0"` // ID Kafka Target для добавления ключа
 
 	// Draft fields for Connection Wizard
 	DraftConnEndpoint string `gorm:"size:255"` // IP:PORT
@@ -65,13 +67,24 @@ type User struct {
 	UpdatedAt time.Time
 }
 
-// MonitoringTarget - подключение к Kafka (чтение)
+// MonitoringTarget - подключение к Kafka (Broker + Topic)
 type MonitoringTarget struct {
+	ID     uint   `gorm:"primaryKey"`
+	UserID int64  `gorm:"index"`
+	Name   string `gorm:"size:255"`
+	Broker string `gorm:"size:255"`
+	Topic  string `gorm:"size:255"`
+
+	// Keys related to this target
+	Keys []MonitoringKey `gorm:"foreignKey:TargetID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+
+	CreatedAt time.Time
+}
+
+// MonitoringKey - конкретный ключ фильтрации для топика
+type MonitoringKey struct {
 	ID        uint   `gorm:"primaryKey"`
-	UserID    int64  `gorm:"index"`
-	Name      string `gorm:"size:255"`
-	Broker    string `gorm:"size:255"`
-	Topic     string `gorm:"size:255"`
+	TargetID  uint   `gorm:"index"`
 	Key       string `gorm:"size:255"`
 	CreatedAt time.Time
 }

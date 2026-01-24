@@ -24,16 +24,11 @@ type Menu struct {
 	BtnAddTarget    tele.Btn
 	BtnBackTargets  tele.Btn
 	BtnCancelWizard tele.Btn
-	BtnCheckMsg     tele.Btn
-	BtnLiveMode     tele.Btn
-	BtnDelete       tele.Btn
-	BtnStopLive     tele.Btn
 
 	// --- Fanuc Services ---
-	BtnAddService  tele.Btn
-	BtnBackSvc     tele.Btn
-	BtnDeleteSvc   tele.Btn
-	BtnSvcMachines tele.Btn
+	BtnAddService tele.Btn
+	BtnBackSvc    tele.Btn
+	BtnDeleteSvc  tele.Btn
 
 	// --- Machines Control ---
 	BtnAddConnection tele.Btn
@@ -61,16 +56,11 @@ func NewMenu() *Menu {
 	// Kafka
 	btnAddTarget := inlineMain.Data("➕ Kafka Target", "add_target")
 	btnBackTargets := inlineMain.Data("🔙 К списку Kafka", "targets_list")
-	btnCheckMsg := inlineMain.Data("📨 Последнее сообщение", "check_msg")
-	btnLiveMode := inlineMain.Data("🔴 Live Mode", "live_mode")
-	btnDelete := inlineMain.Data("🗑 Удалить", "del_target")
-	btnStopLive := inlineMain.Data("⏹ Стоп", "stop_live")
 
 	// Services
 	btnAddService := inlineMain.Data("➕ API Service", "add_service")
 	btnBackSvc := inlineMain.Data("🔙 К списку Сервисов", "services_list")
 	btnDeleteSvc := inlineMain.Data("🗑 Удалить сервис", "del_service")
-	btnSvcMachines := inlineMain.Data("🔌 Управление станками", "svc_machines")
 
 	// Machines
 	btnAddConnection := inlineMain.Data("➕ Подключить станок", "add_conn")
@@ -88,16 +78,11 @@ func NewMenu() *Menu {
 		BtnAddTarget:    btnAddTarget,
 		BtnBackTargets:  btnBackTargets,
 		BtnCancelWizard: btnCancelWizard,
-		BtnCheckMsg:     btnCheckMsg,
-		BtnLiveMode:     btnLiveMode,
-		BtnDelete:       btnDelete,
-		BtnStopLive:     btnStopLive,
 
 		// Services
 		BtnAddService:    btnAddService,
 		BtnBackSvc:       btnBackSvc,
 		BtnDeleteSvc:     btnDeleteSvc,
-		BtnSvcMachines:   btnSvcMachines,
 		BtnAddConnection: btnAddConnection,
 	}
 }
@@ -135,23 +120,61 @@ func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.Reply
 	return markup
 }
 
-func (m *Menu) BuildTargetView(targetID uint) *tele.ReplyMarkup {
+func (m *Menu) BuildTargetView(t entities.MonitoringTarget) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-	btnCheck := markup.Data("📨 Msg", fmt.Sprintf("check_msg:%d", targetID))
-	btnLive := markup.Data("🔴 Live", fmt.Sprintf("live_mode:%d", targetID))
-	btnDel := markup.Data("🗑 Del", fmt.Sprintf("del_target:%d", targetID))
 
-	markup.Inline(
-		markup.Row(btnCheck, btnLive),
-		markup.Row(btnDel),
-		markup.Row(m.BtnBackTargets),
-	)
+	// 1. Entry Points List
+	var entryRows []tele.Row
+
+	// Default (No Key) entry point
+	// keyID = 0 is reserved for "No Key"
+	btnDefault := markup.Data("📂 Default (No Key)", fmt.Sprintf("view_key:%d:0", t.ID))
+	entryRows = append(entryRows, markup.Row(btnDefault))
+
+	// User defined keys
+	for _, k := range t.Keys {
+		btnKey := markup.Data(fmt.Sprintf("🔑 %s", k.Key), fmt.Sprintf("view_key:%d:%d", t.ID, k.ID))
+		entryRows = append(entryRows, markup.Row(btnKey))
+	}
+
+	// 2. Management
+	btnAddKey := markup.Data("➕ Добавить ключ", fmt.Sprintf("add_key_start:%d", t.ID))
+	btnDelTarget := markup.Data("🗑 Удалить Target", fmt.Sprintf("del_target:%d", t.ID))
+
+	entryRows = append(entryRows, markup.Row(btnAddKey))
+	entryRows = append(entryRows, markup.Row(btnDelTarget))
+	entryRows = append(entryRows, markup.Row(m.BtnBackTargets))
+
+	markup.Inline(entryRows...)
 	return markup
 }
 
-func (m *Menu) BuildLiveView(targetID uint) *tele.ReplyMarkup {
+func (m *Menu) BuildKeyView(targetID, keyID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-	btnStop := markup.Data("⏹ Стоп", fmt.Sprintf("stop_live:%d", targetID))
+
+	btnMsg := markup.Data("📨 Check Msg", fmt.Sprintf("check_msg:%d:%d", targetID, keyID))
+	btnLive := markup.Data("🔴 Live Mode", fmt.Sprintf("live_mode:%d:%d", targetID, keyID))
+	btnBack := markup.Data("🔙 К Target", fmt.Sprintf("view_target:%d", targetID))
+
+	// Control rows
+	rows := []tele.Row{
+		markup.Row(btnMsg, btnLive),
+	}
+
+	// Delete button only for real keys (ID > 0)
+	if keyID > 0 {
+		btnDelKey := markup.Data("🗑 Удалить ключ", fmt.Sprintf("del_key:%d:%d", targetID, keyID))
+		rows = append(rows, markup.Row(btnDelKey))
+	}
+
+	rows = append(rows, markup.Row(btnBack))
+	markup.Inline(rows...)
+	return markup
+}
+
+func (m *Menu) BuildLiveView(targetID, keyID uint) *tele.ReplyMarkup {
+	markup := &tele.ReplyMarkup{}
+	btnStop := markup.Data("⏹ Стоп", fmt.Sprintf("stop_live:%d:%d", targetID, keyID))
 	markup.Inline(markup.Row(btnStop))
 	return markup
 }
@@ -171,26 +194,11 @@ func (m *Menu) BuildServicesList(services []entities.FanucService) *tele.ReplyMa
 	return markup
 }
 
-func (m *Menu) BuildServiceView(svcID uint) *tele.ReplyMarkup {
-	markup := &tele.ReplyMarkup{}
-	// Важно передать svcID
-	btnList := markup.Data("🔌 Управление станками", fmt.Sprintf("svc_machines:%d", svcID))
-	btnDel := markup.Data("🗑 Удалить сервис", fmt.Sprintf("del_service:%d", svcID))
-
-	markup.Inline(
-		markup.Row(btnList),
-		markup.Row(btnDel),
-		markup.Row(m.BtnBackSvc),
-	)
-	return markup
-}
-
-// --- Machine Menus ---
-
-func (m *Menu) BuildMachinesList(svcID uint, machines []fanucService.MachineDTO) *tele.ReplyMarkup {
+func (m *Menu) BuildServiceView(svcID uint, machines []fanucService.MachineDTO) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
 
+	// 1. Machine List
 	for _, mach := range machines {
 		statusIcon := "🟢"
 		if mach.Status != "connected" {
@@ -198,27 +206,27 @@ func (m *Menu) BuildMachinesList(svcID uint, machines []fanucService.MachineDTO)
 		} else if mach.Mode == "polling" {
 			statusIcon = "🔄"
 		}
-		// Используем сокращенный префикс vm (view_machine) чтобы влезть в 64 байта
 		btn := markup.Data(fmt.Sprintf("%s %s (%s)", statusIcon, mach.Endpoint, mach.Model),
 			fmt.Sprintf("vm:%d:%s", svcID, mach.ID))
 		rows = append(rows, markup.Row(btn))
 	}
 
+	// 2. Service Management
 	btnAdd := markup.Data("➕ Подключить станок", fmt.Sprintf("add_conn:%d", svcID))
-	btnBack := markup.Data("🔙 К сервису", fmt.Sprintf("view_service:%d", svcID))
+	btnDel := markup.Data("🗑 Удалить сервис", fmt.Sprintf("del_service:%d", svcID))
 
 	rows = append(rows, markup.Row(btnAdd))
-	rows = append(rows, markup.Row(btnBack))
+	rows = append(rows, markup.Row(btnDel))
+	rows = append(rows, markup.Row(m.BtnBackSvc))
+
 	markup.Inline(rows...)
 	return markup
 }
 
+// --- Machine Menus ---
+
 func (m *Menu) BuildMachineView(svcID uint, machine fanucService.MachineDTO) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
-
-	// Действия
-	// sp = start poll, stp = stop poll, gp = get program, dc = delete connection
-	// Формат: action:svcID:machineID
 
 	var btnPoll tele.Btn
 	if machine.Mode == "polling" {
@@ -229,7 +237,8 @@ func (m *Menu) BuildMachineView(svcID uint, machine fanucService.MachineDTO) *te
 
 	btnProg := markup.Data("📄 Скачать программу", fmt.Sprintf("gp:%d:%s", svcID, machine.ID))
 	btnDel := markup.Data("🗑 Удалить", fmt.Sprintf("dc:%d:%s", svcID, machine.ID))
-	btnBack := markup.Data("🔙 К списку станков", fmt.Sprintf("svc_machines:%d", svcID))
+	// Кнопка назад теперь ведет на просмотр сервиса (список станков), а не на старый промежуточный список
+	btnBack := markup.Data("🔙 К сервису", fmt.Sprintf("view_service:%d", svcID))
 
 	markup.Inline(
 		markup.Row(btnPoll),

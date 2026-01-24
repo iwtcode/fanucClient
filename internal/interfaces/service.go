@@ -7,7 +7,8 @@ import (
 )
 
 type KafkaReader interface {
-	GetLastMessage(ctx context.Context, broker, topic, key string) (string, error)
+	// GetLastMessage returns (key, value, error)
+	GetLastMessage(ctx context.Context, broker, topic, keyFilter string) (string, string, error)
 }
 
 type FanucApiService interface {

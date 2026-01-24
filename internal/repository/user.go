@@ -26,7 +26,7 @@ func (r *userRepository) Save(user *entities.User) error {
 
 func (r *userRepository) GetByID(id int64) (*entities.User, error) {
 	var user entities.User
-	// Подгружаем и таргеты и сервисы
+	// Подгружаем и таргеты (без ключей для списка юзера не обязательно, но можно), и сервисы
 	err := r.db.Preload("Targets").Preload("Services").First(&user, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -57,17 +57,38 @@ func (r *userRepository) DeleteTarget(targetID uint, userID int64) error {
 
 func (r *userRepository) GetTargets(userID int64) ([]entities.MonitoringTarget, error) {
 	var targets []entities.MonitoringTarget
+	// В списке таргетов ключи пока не нужны, загрузим их при детальном просмотре
 	err := r.db.Where("user_id = ?", userID).Find(&targets).Error
 	return targets, err
 }
 
 func (r *userRepository) GetTargetByID(targetID uint) (*entities.MonitoringTarget, error) {
 	var t entities.MonitoringTarget
-	err := r.db.First(&t, "id = ?", targetID).Error
+	// Здесь важно загрузить Keys
+	err := r.db.Preload("Keys").First(&t, "id = ?", targetID).Error
 	if err != nil {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// --- Keys ---
+
+func (r *userRepository) AddKey(key *entities.MonitoringKey) error {
+	return r.db.Create(key).Error
+}
+
+func (r *userRepository) DeleteKey(keyID uint) error {
+	return r.db.Delete(&entities.MonitoringKey{}, "id = ?", keyID).Error
+}
+
+func (r *userRepository) GetKeyByID(keyID uint) (*entities.MonitoringKey, error) {
+	var k entities.MonitoringKey
+	err := r.db.First(&k, "id = ?", keyID).Error
+	if err != nil {
+		return nil, err
+	}
+	return &k, nil
 }
 
 // --- Services ---

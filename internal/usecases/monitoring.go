@@ -19,16 +19,27 @@ func NewMonitoringUsecase(repo interfaces.UserRepository, kafkaSvc interfaces.Ka
 	}
 }
 
-func (u *monitoringUsecase) FetchLastKafkaMessage(ctx context.Context, targetID uint) (string, error) {
+func (u *monitoringUsecase) FetchLastKafkaMessage(ctx context.Context, targetID uint, keyID uint) (string, string, error) {
 	target, err := u.repo.GetTargetByID(targetID)
 	if err != nil {
-		return "", fmt.Errorf("target not found: %w", err)
+		return "", "", fmt.Errorf("target not found: %w", err)
 	}
 
-	msg, err := u.kafkaSvc.GetLastMessage(ctx, target.Broker, target.Topic, target.Key)
+	var keyString string
+	// If keyID is provided (> 0), fetch the actual key string
+	if keyID > 0 {
+		k, err := u.repo.GetKeyByID(keyID)
+		if err != nil {
+			return "", "", fmt.Errorf("key not found: %w", err)
+		}
+		keyString = k.Key
+	}
+
+	// Use empty string for keyString if keyID == 0 (default/no key)
+	foundKey, foundVal, err := u.kafkaSvc.GetLastMessage(ctx, target.Broker, target.Topic, keyString)
 	if err != nil {
-		return "", fmt.Errorf("kafka error: %w", err)
+		return "", "", fmt.Errorf("kafka error: %w", err)
 	}
 
-	return msg, nil
+	return foundKey, foundVal, nil
 }

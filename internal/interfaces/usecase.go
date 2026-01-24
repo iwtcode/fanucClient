@@ -15,6 +15,7 @@ type SettingsUsecase interface {
 	// Context Helpers for Wizards
 	SetContextSvcID(userID int64, svcID uint) error
 	SetContextMachineID(userID int64, machineID string) error
+	SetContextTargetID(userID int64, targetID uint) error
 
 	// Connection Wizard Steps
 	SetDraftConnEndpoint(userID int64, endpoint string) error
@@ -24,11 +25,16 @@ type SettingsUsecase interface {
 	// Kafka Targets Management
 	SetDraftName(id int64, name string) error
 	SetDraftBroker(id int64, broker string) error
-	SetDraftTopic(id int64, topic string) error
-	SetDraftKeyAndSave(id int64, key string) error
+	SetDraftTopicAndSave(id int64, topic string) error
+
 	GetTargets(userID int64) ([]entities.MonitoringTarget, error)
 	DeleteTarget(userID int64, targetID uint) error
 	GetTargetByID(targetID uint) (*entities.MonitoringTarget, error)
+
+	// Kafka Key Management
+	AddKeyToTarget(userID int64, key string) error
+	DeleteKey(keyID uint) error
+	GetKeyByID(keyID uint) (*entities.MonitoringKey, error)
 
 	// Fanuc Services Management
 	SetDraftSvcName(id int64, name string) error
@@ -40,12 +46,13 @@ type SettingsUsecase interface {
 }
 
 type MonitoringUsecase interface {
-	FetchLastKafkaMessage(ctx context.Context, targetID uint) (string, error)
+	// keyID == 0 means "no key" (default)
+	// Returns: foundKey, foundValue, error
+	FetchLastKafkaMessage(ctx context.Context, targetID uint, keyID uint) (string, string, error)
 }
 
 type ControlUsecase interface {
 	// Machine Management
-	// CreateMachine теперь принимает полный набор параметров
 	CreateMachine(ctx context.Context, svcID uint, req fanucService.ConnectionRequest) (*fanucService.MachineDTO, error)
 	ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error)
 	GetMachine(ctx context.Context, svcID uint, machineID string) (*fanucService.MachineDTO, error)

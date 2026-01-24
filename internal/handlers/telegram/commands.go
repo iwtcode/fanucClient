@@ -83,11 +83,9 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 	case h.menu.BtnWho.Text:
 		return h.OnWho(c)
 	case h.menu.BtnTargets.Text:
-		// Создаем временный хендлер для навигации
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
 		return cb.onListTargets(c)
 	case h.menu.BtnServices.Text:
-		// Создаем временный хендлер для навигации
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
 		return cb.onListServices(c)
 	}
@@ -97,24 +95,26 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 	// --- Kafka Wizard ---
 	case entities.StateWaitingName:
 		h.settingsUC.SetDraftName(userID, input)
-		return c.Send("🔌 <b>Шаг 2/4: Broker (IP:PORT)</b>", h.menu.BuildCancel())
+		return c.Send("🔌 <b>Шаг 2/3: Broker (IP:PORT)</b>", h.menu.BuildCancel())
 	case entities.StateWaitingBroker:
 		h.settingsUC.SetDraftBroker(userID, input)
-		return c.Send("📂 <b>Шаг 3/4: Topic</b>", h.menu.BuildCancel())
+		return c.Send("📂 <b>Шаг 3/3: Topic</b>", h.menu.BuildCancel())
 	case entities.StateWaitingTopic:
-		h.settingsUC.SetDraftTopic(userID, input)
-		return c.Send("🔑 <b>Шаг 4/4: Key (Optional)</b>\nОтправьте '0' или '-' если не нужен.", h.menu.BuildCancel())
-	case entities.StateWaitingKey:
-		finalKey := input
-		if input == "0" || input == "-" {
-			finalKey = ""
-		}
-		h.settingsUC.SetDraftKeyAndSave(userID, finalKey)
+		// Save immediately, no key step
+		h.settingsUC.SetDraftTopicAndSave(userID, input)
 		c.Send("✅ Kafka Target Saved!")
 
-		// Возврат к списку
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
 		return cb.onListTargets(c)
+
+	// --- Adding Key to existing Target ---
+	case entities.StateWaitingNewKey:
+		h.settingsUC.AddKeyToTarget(userID, input)
+		c.Send("✅ Key Added!")
+
+		// Redirect back to target view
+		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
+		return cb.onViewTarget(c, user.ContextTargetID)
 
 	// --- Service Registration Wizard ---
 	case entities.StateWaitingSvcName:
@@ -127,18 +127,15 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		h.settingsUC.SetDraftSvcKeyAndSave(userID, input)
 		c.Send("✅ Service Saved!")
 
-		// Возврат к списку сервисов
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
 		return cb.onListServices(c)
 
 	// --- Machine Connection Wizard (Remote API) ---
 	case entities.StateWaitingConnEndpoint:
-		// Шаг 1: Endpoint
 		h.settingsUC.SetDraftConnEndpoint(userID, input)
 		return c.Send("⏱ <b>Шаг 2/4: Timeout (ms)</b>\nВведите таймаут соединения (например 5000).\nОтправьте '0' или '-' для значения по умолчанию (5000ms).", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnTimeout:
-		// Шаг 2: Timeout
 		timeout := 5000
 		if input != "0" && input != "-" {
 			val, err := strconv.Atoi(input)
@@ -151,7 +148,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		return c.Send("🤖 <b>Шаг 3/4: Model</b>\nВведите название модели.\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnModel:
-		// Шаг 3: Model
 		model := input
 		if input == "0" || input == "-" {
 			model = "Unknown"
@@ -160,13 +156,11 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		return c.Send("🔢 <b>Шаг 4/4: Series</b>\nВведите серию стойки (0i, 30i, 31i).\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnSeries:
-		// Шаг 4: Series и Финиш
 		series := input
 		if input == "0" || input == "-" {
 			series = "Unknown"
 		}
 
-		// Собираем все данные из контекста пользователя
 		svcID := user.ContextSvcID
 		req := fanucService.ConnectionRequest{
 			Endpoint: user.DraftConnEndpoint,
@@ -177,7 +171,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 		c.Send("⏳ Creating connection on remote service...")
 
-		// Call UseCase
 		_, err := h.controlUC.CreateMachine(context.Background(), svcID, req)
 		if err != nil {
 			c.Send(fmt.Sprintf("❌ Error creating connection: %v", err))
@@ -186,9 +179,9 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		}
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
-		// Redirect to machine list
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
-		return cb.onListServiceMachines(c, svcID)
+		// Изменено: вызываем onViewService вместо onListServiceMachines
+		return cb.onViewService(c, svcID)
 
 	// --- Polling Wizard ---
 	case entities.StateWaitingPollInterval:
@@ -209,7 +202,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		}
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
-		// Redirect to machine view
 		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
 		return cb.onViewMachine(c, svcID, machineID)
 
