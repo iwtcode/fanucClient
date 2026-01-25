@@ -203,7 +203,7 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 
 	if errMach != nil {
 		safeErr := html.EscapeString(errMach.Error())
-		text += fmt.Sprintf("\n⚠️ <b>API Недоступен:</b>\n%s\n", safeErr)
+		text += fmt.Sprintf("\n⚠️ <b>API Недоступен:</b>\n%s", safeErr)
 		// We still show the menu (empty list) so user can delete the service if needed
 		machines = []fanucService.MachineDTO{}
 	} else {

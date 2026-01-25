@@ -9,13 +9,6 @@ import (
 )
 
 type Menu struct {
-	// Reply Main
-	ReplyMain   *tele.ReplyMarkup
-	BtnTargets  tele.Btn
-	BtnServices tele.Btn
-	BtnWho      tele.Btn
-	BtnHome     tele.Btn
-
 	// Inline Main
 	InlineMain    *tele.ReplyMarkup
 	BtnHomeInline tele.Btn
@@ -35,19 +28,7 @@ type Menu struct {
 }
 
 func NewMenu() *Menu {
-	replyMain := &tele.ReplyMarkup{ResizeKeyboard: true}
 	inlineMain := &tele.ReplyMarkup{}
-
-	// Reply Buttons
-	btnTargets := replyMain.Text("📋 Kafka Targets")
-	btnServices := replyMain.Text("🌐 API Services")
-	btnWho := replyMain.Text("👤 Профиль")
-	btnHome := replyMain.Text("🏠 В начало")
-
-	replyMain.Reply(
-		replyMain.Row(btnTargets, btnServices),
-		replyMain.Row(btnWho, btnHome),
-	)
 
 	// Inline Buttons (Global)
 	btnHomeInline := inlineMain.Data("🏠 В начало", "home")
@@ -66,12 +47,7 @@ func NewMenu() *Menu {
 	btnAddConnection := inlineMain.Data("➕ Подключить станок", "add_conn")
 
 	return &Menu{
-		ReplyMain:     replyMain,
 		InlineMain:    inlineMain,
-		BtnTargets:    btnTargets,
-		BtnServices:   btnServices,
-		BtnWho:        btnWho,
-		BtnHome:       btnHome,
 		BtnHomeInline: btnHomeInline,
 
 		// Kafka
@@ -237,7 +213,6 @@ func (m *Menu) BuildMachineView(svcID uint, machine fanucService.MachineDTO) *te
 
 	btnProg := markup.Data("📄 Скачать программу", fmt.Sprintf("gp:%d:%s", svcID, machine.ID))
 	btnDel := markup.Data("🗑 Удалить", fmt.Sprintf("dc:%d:%s", svcID, machine.ID))
-	// Кнопка назад теперь ведет на просмотр сервиса (список станков), а не на старый промежуточный список
 	btnBack := markup.Data("🔙 К сервису", fmt.Sprintf("view_service:%d", svcID))
 
 	markup.Inline(

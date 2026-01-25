@@ -43,10 +43,15 @@ func (h *CommandHandler) OnStart(c tele.Context) error {
 	h.settingsUC.RegisterUser(user)
 
 	text := "👋 <b>Fanuc Client</b>\n\nГлавное меню."
+
+	// Если сообщение пришло от кнопки (Callback), редактируем его.
 	if c.Callback() != nil {
 		return c.Edit(text, h.menu.BuildMainMenu())
 	}
-	return c.Send(text, h.menu.ReplyMain, h.menu.BuildMainMenu())
+
+	// Если это команда /start, отправляем новое сообщение с Inline клавиатурой.
+	// tele.RemoveKeyboard убирает старую Reply клавиатуру у пользователя.
+	return c.Send(text, tele.RemoveKeyboard, h.menu.BuildMainMenu())
 }
 
 func (h *CommandHandler) OnWho(c tele.Context) error {
@@ -111,19 +116,9 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 	input := strings.TrimSpace(c.Text())
 
-	// Menu Commands (Reply Keyboard)
-	switch input {
-	case h.menu.BtnHome.Text:
-		return h.OnStart(c)
-	case h.menu.BtnWho.Text:
-		return h.OnWho(c)
-	case h.menu.BtnTargets.Text:
-		return h.OnKafka(c)
-	case h.menu.BtnServices.Text:
-		return h.OnServices(c)
-	}
-
-	// FSM Processing
+	// FSM Processing (Wizards)
+	// Ввод текста обрабатывается только если пользователь находится в режиме ожидания (Wizard).
+	// Если state == "idle", текст игнорируется или вызывается меню.
 	switch user.State {
 	// --- Kafka Wizard ---
 	case entities.StateWaitingName:
@@ -229,6 +224,7 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		return h.OnServices(c)
 
 	default:
+		// Если состояние Idle, любой текстовый ввод перенаправляет в главное меню.
 		return h.OnStart(c)
 	}
 }

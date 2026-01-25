@@ -27,13 +27,8 @@ func (r *Router) Register(b *tele.Bot) {
 	b.Handle("/kafka", r.commands.OnKafka)
 	b.Handle("/services", r.commands.OnServices)
 
-	// Reply Keyboard (Текстовые кнопки главного меню)
-	b.Handle(&r.menu.BtnTargets, r.callbacks.onListTargets)
-	b.Handle(&r.menu.BtnServices, r.callbacks.onListServices)
-	b.Handle(&r.menu.BtnWho, r.commands.OnWho)
-	b.Handle(&r.menu.BtnHome, r.commands.OnStart)
-
 	// Callbacks & Text
+	// Text хендлер нужен для работы Wizard-ов (ввод IP, имен и т.д.)
 	b.Handle(tele.OnCallback, r.callbacks.OnCallback)
 	b.Handle(tele.OnText, r.commands.OnText)
 }
