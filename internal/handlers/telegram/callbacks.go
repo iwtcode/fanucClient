@@ -432,7 +432,7 @@ func (h *CallbackHandler) onViewKey(c tele.Context, targetID, keyID uint) error 
 		if err != nil {
 			return h.onViewTarget(c, targetID)
 		}
-		text = fmt.Sprintf("🔑 <b>Key View</b>\nVal: <code>%s</code>", html.EscapeString(key.Key))
+		text = fmt.Sprintf("🔑 <b>Key</b>: <code>%s</code>", html.EscapeString(key.Key))
 	}
 
 	markup := h.menu.BuildKeyView(targetID, keyID)
@@ -513,13 +513,13 @@ func (h *CallbackHandler) onStopLive(c tele.Context, targetID, keyID uint) error
 }
 
 func (h *CallbackHandler) runLiveUpdateLoop(ctx context.Context, c tele.Context, targetID, keyID uint, title string) {
-	ticker := time.NewTicker(3 * time.Second)
+	ticker := time.NewTicker(1500 * time.Millisecond)
 	defer ticker.Stop()
 	var lastContent string
 
 	update := func() {
 		fetchCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		foundKey, msgRaw, err := h.monitoringUC.FetchLastKafkaMessage(fetchCtx, targetID, keyID)
+		_, msgRaw, err := h.monitoringUC.FetchLastKafkaMessage(fetchCtx, targetID, keyID)
 		cancel()
 		if ctx.Err() != nil {
 			return
@@ -533,9 +533,6 @@ func (h *CallbackHandler) runLiveUpdateLoop(ctx context.Context, c tele.Context,
 			safeErr := html.EscapeString(err.Error())
 			textBuilder.WriteString(fmt.Sprintf("❌ %s", safeErr))
 		} else {
-			if foundKey != "" {
-				textBuilder.WriteString(fmt.Sprintf("🔑 Key: <code>%s</code>\n", html.EscapeString(foundKey)))
-			}
 
 			p := prettyPrintJSON(msgRaw)
 			if len(p) > 3500 {
