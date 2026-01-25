@@ -52,7 +52,7 @@ func (h *CommandHandler) OnStart(c tele.Context) error {
 func (h *CommandHandler) OnWho(c tele.Context) error {
 	u, err := h.settingsUC.GetUser(c.Sender().ID)
 	if err != nil {
-		return c.Send("Ошибка получения пользователя")
+		return c.Send("❌ Ошибка получения пользователя")
 	}
 	text := fmt.Sprintf("👤 <b>Профиль</b>\nID: <code>%d</code>\nСостояние: <code>%s</code>", u.ID, u.State)
 
@@ -76,7 +76,7 @@ func (h *CommandHandler) OnKafka(c tele.Context) error {
 	targets, err := h.settingsUC.GetTargets(userID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Ошибка получения Targets: " + safeErr)
+		return c.Send("❌ Ошибка получения Targets: " + safeErr)
 	}
 
 	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>\n\nВыберите <code>Kafka Target</code> для управления:", len(targets))
@@ -93,7 +93,7 @@ func (h *CommandHandler) OnServices(c tele.Context) error {
 	services, err := h.settingsUC.GetServices(userID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Ошибка получения сервисов: " + safeErr)
+		return c.Send("❌ Ошибка получения сервисов: " + safeErr)
 	}
 
 	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите <code>API Service</code> для управления:", len(services))
@@ -141,9 +141,6 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 	case entities.StateWaitingNewKey:
 		h.settingsUC.AddKeyToTarget(userID, input)
 		c.Send("✅ Ключ добавлен!")
-
-		// Для редиректа на просмотр таргета нам нужен CallbackHandler.
-		// Так как здесь мы в CommandHandler, мы просто вернем список таргетов.
 		return h.OnKafka(c)
 
 	// --- Service Registration Wizard ---

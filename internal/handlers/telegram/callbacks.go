@@ -167,7 +167,7 @@ func (h *CallbackHandler) onListServices(c tele.Context) error {
 	services, err := h.settingsUC.GetServices(c.Sender().ID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Ошибка получения списка сервисов: " + safeErr)
+		return c.Send("❌ Ошибка получения списка сервисов: " + safeErr)
 	}
 
 	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите <code>API Service</code> для управления:", len(services))
@@ -223,9 +223,9 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 func (h *CallbackHandler) onDeleteService(c tele.Context, svcID uint) error {
 	err := h.settingsUC.DeleteService(c.Sender().ID, svcID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Ошибка удаления сервиса"})
+		c.Respond(&tele.CallbackResponse{Text: "❌ Ошибка удаления сервиса"})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Удалено!"})
+		c.Respond(&tele.CallbackResponse{Text: "✅ Удалено!"})
 	}
 	return h.onListServices(c)
 }
@@ -242,7 +242,7 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 		if err != nil {
 			safeErr = err.Error()
 		}
-		c.Respond(&tele.CallbackResponse{Text: "Не удалось загрузить станок: " + safeErr})
+		c.Respond(&tele.CallbackResponse{Text: "❌ Не удалось загрузить станок: " + safeErr})
 		// Fallback to service view
 		return h.onViewService(c, svcID)
 	}
@@ -309,9 +309,9 @@ func (h *CallbackHandler) onDeleteConnection(c tele.Context, svcID uint, machine
 	c.Notify(tele.Typing)
 	err := h.controlUC.DeleteMachine(context.Background(), svcID, machineID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Ошибка: " + err.Error()})
+		c.Respond(&tele.CallbackResponse{Text: "❌ Ошибка: " + err.Error()})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Подключение удалено"})
+		c.Respond(&tele.CallbackResponse{Text: "✅ Подключение удалено"})
 	}
 	// Return to service view (machine list)
 	return h.onViewService(c, svcID)
@@ -330,9 +330,9 @@ func (h *CallbackHandler) onStopPoll(c tele.Context, svcID uint, machineID strin
 	c.Notify(tele.Typing)
 	err := h.controlUC.StopPolling(context.Background(), svcID, machineID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Ошибка остановки опроса: " + err.Error()})
+		c.Respond(&tele.CallbackResponse{Text: "❌ Ошибка остановки опроса: " + err.Error()})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Опрос остановлен"})
+		c.Respond(&tele.CallbackResponse{Text: "✅ Опрос остановлен"})
 	}
 	return h.onViewMachine(c, svcID, machineID)
 }
@@ -342,7 +342,7 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 	prog, err := h.controlUC.GetProgram(context.Background(), svcID, machineID)
 
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Ошибка получения программы"})
+		c.Respond(&tele.CallbackResponse{Text: "❌ Ошибка получения программы"})
 		safeErr := html.EscapeString(err.Error())
 		backMarkup := &tele.ReplyMarkup{}
 		// Back leads to machine view
@@ -384,7 +384,7 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 	targets, err := h.settingsUC.GetTargets(c.Sender().ID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Ошибка получения списка targets: " + safeErr)
+		return c.Send("❌ Ошибка получения списка Targets: " + safeErr)
 	}
 	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>\n\nВыберите <code>Kafka Target</code> для управления:", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
@@ -420,7 +420,7 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 
 func (h *CallbackHandler) onDeleteTarget(c tele.Context, targetID uint) error {
 	h.settingsUC.DeleteTarget(c.Sender().ID, targetID)
-	c.Respond(&tele.CallbackResponse{Text: "Target удален"})
+	c.Respond(&tele.CallbackResponse{Text: "✅ Target удален"})
 	return h.onListTargets(c)
 }
 
@@ -460,7 +460,7 @@ func (h *CallbackHandler) onViewKey(c tele.Context, targetID, keyID uint) error 
 
 func (h *CallbackHandler) onDeleteKey(c tele.Context, targetID, keyID uint) error {
 	h.settingsUC.DeleteKey(keyID)
-	c.Respond(&tele.CallbackResponse{Text: "Ключ удален"})
+	c.Respond(&tele.CallbackResponse{Text: "✅ Ключ удален"})
 	return h.onViewTarget(c, targetID)
 }
 
@@ -586,7 +586,7 @@ func (h *CallbackHandler) stopUserLiveSession(userID int64) {
 
 func (h *CallbackHandler) onAddTargetStart(c tele.Context) error {
 	h.settingsUC.SetState(c.Sender().ID, entities.StateWaitingName)
-	return c.Edit("🖊 <b>Шаг 1/3: Kafka Name</b>\nВведите имя:", h.menu.BuildCancel())
+	return c.Edit("🖊 <b>Шаг 1/3: Имя Kafka Target</b>\nВведите имя:", h.menu.BuildCancel())
 }
 
 func (h *CallbackHandler) onCancelWizard(c tele.Context) error {
