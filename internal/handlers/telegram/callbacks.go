@@ -393,7 +393,7 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 	safeBroker := html.EscapeString(t.Broker)
 	safeTopic := html.EscapeString(t.Topic)
 
-	text := fmt.Sprintf("🔩 <b>Target: %s</b>\nBroker: <code>%s</code>\nTopic: <code>%s</code>\n\nВыберите вход для мониторинга:",
+	text := fmt.Sprintf("� <b>Target: %s</b>\nBroker: <code>%s</code>\nTopic: <code>%s</code>\n\nВыберите вход для мониторинга:",
 		safeName, safeBroker, safeTopic)
 	markup := h.menu.BuildTargetView(*t)
 

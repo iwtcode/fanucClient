@@ -111,7 +111,7 @@ func (m *Menu) BuildTargetsList(targets []entities.MonitoringTarget) *tele.Reply
 	markup := &tele.ReplyMarkup{}
 	var rows []tele.Row
 	for _, t := range targets {
-		btn := markup.Data(fmt.Sprintf("🔩 %s", t.Name), fmt.Sprintf("view_target:%d", t.ID))
+		btn := markup.Data(fmt.Sprintf("📋 %s", t.Name), fmt.Sprintf("view_target:%d", t.ID))
 		rows = append(rows, markup.Row(btn))
 	}
 	rows = append(rows, markup.Row(m.BtnAddTarget))
