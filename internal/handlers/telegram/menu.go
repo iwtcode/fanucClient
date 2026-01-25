@@ -39,7 +39,7 @@ func NewMenu() *Menu {
 	inlineMain := &tele.ReplyMarkup{}
 
 	// Reply Buttons
-	btnTargets := replyMain.Text("📋 Kafka Reader")
+	btnTargets := replyMain.Text("📋 Kafka Targets")
 	btnServices := replyMain.Text("🌐 API Services")
 	btnWho := replyMain.Text("👤 Профиль")
 	btnHome := replyMain.Text("🏠 В начало")
@@ -90,7 +90,7 @@ func NewMenu() *Menu {
 func (m *Menu) BuildMainMenu() *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 	markup.Inline(
-		markup.Row(markup.Data("📋 Kafka Reader", "targets_list")),
+		markup.Row(markup.Data("📋 Kafka Targets", "targets_list")),
 		markup.Row(markup.Data("🌐 API Services", "services_list")),
 		markup.Row(markup.Data("👤 Профиль", "who_btn")),
 	)

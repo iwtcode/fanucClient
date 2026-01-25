@@ -170,7 +170,7 @@ func (h *CallbackHandler) onListServices(c tele.Context) error {
 		return c.Send("Error fetching services: " + safeErr)
 	}
 
-	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите сервис для управления:", len(services))
+	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите <code>API Service</code> для управления:", len(services))
 	markup := h.menu.BuildServicesList(services)
 
 	if c.Callback() != nil {
@@ -371,7 +371,7 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 		safeErr := html.EscapeString(err.Error())
 		return c.Send("Error fetching targets: " + safeErr)
 	}
-	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>", len(targets))
+	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>\n\nВыберите <code>Kafka Target</code> для управления:", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
 
 	if c.Callback() != nil {
@@ -393,7 +393,7 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 	safeBroker := html.EscapeString(t.Broker)
 	safeTopic := html.EscapeString(t.Topic)
 
-	text := fmt.Sprintf("� <b>Target: %s</b>\nBroker: <code>%s</code>\nTopic: <code>%s</code>\n\nВыберите вход для мониторинга:",
+	text := fmt.Sprintf("📋 <b>Target: %s</b>\nBroker: <code>%s</code>\nTopic: <code>%s</code>\n\nВыберите ключ для мониторинга или действие:",
 		safeName, safeBroker, safeTopic)
 	markup := h.menu.BuildTargetView(*t)
 

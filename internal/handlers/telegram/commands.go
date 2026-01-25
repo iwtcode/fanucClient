@@ -53,7 +53,7 @@ func (h *CommandHandler) OnWho(c tele.Context) error {
 	if err != nil {
 		return c.Send("Error getting user")
 	}
-	text := fmt.Sprintf("👤 <b>Profile</b>\nID: %d\nState: %s", u.ID, u.State)
+	text := fmt.Sprintf("👤 <b>Profile</b>\nID: <code>%d</code>\nState: <code>%s</code>", u.ID, u.State)
 
 	targets, _ := h.settingsUC.GetTargets(u.ID)
 	services, _ := h.settingsUC.GetServices(u.ID)
