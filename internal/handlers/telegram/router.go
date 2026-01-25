@@ -23,7 +23,11 @@ func (r *Router) Register(b *tele.Bot) {
 	b.Handle("/start", r.commands.OnStart)
 	b.Handle("/profile", r.commands.OnWho)
 
-	// Reply Keyboard
+	// Добавляем обработку новых команд меню
+	b.Handle("/kafka", r.commands.OnKafka)
+	b.Handle("/services", r.commands.OnServices)
+
+	// Reply Keyboard (Текстовые кнопки главного меню)
 	b.Handle(&r.menu.BtnTargets, r.callbacks.onListTargets)
 	b.Handle(&r.menu.BtnServices, r.callbacks.onListServices)
 	b.Handle(&r.menu.BtnWho, r.commands.OnWho)

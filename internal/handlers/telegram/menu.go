@@ -128,7 +128,7 @@ func (m *Menu) BuildTargetView(t entities.MonitoringTarget) *tele.ReplyMarkup {
 
 	// Default (No Key) entry point
 	// keyID = 0 is reserved for "No Key"
-	btnDefault := markup.Data("📂 Default (No Key)", fmt.Sprintf("view_key:%d:0", t.ID))
+	btnDefault := markup.Data("📂 По умолчанию (Без ключа)", fmt.Sprintf("view_key:%d:0", t.ID))
 	entryRows = append(entryRows, markup.Row(btnDefault))
 
 	// User defined keys
@@ -152,9 +152,9 @@ func (m *Menu) BuildTargetView(t entities.MonitoringTarget) *tele.ReplyMarkup {
 func (m *Menu) BuildKeyView(targetID, keyID uint) *tele.ReplyMarkup {
 	markup := &tele.ReplyMarkup{}
 
-	btnMsg := markup.Data("📨 Check Msg", fmt.Sprintf("check_msg:%d:%d", targetID, keyID))
+	btnMsg := markup.Data("📨 Проверить сообщение", fmt.Sprintf("check_msg:%d:%d", targetID, keyID))
 	btnLive := markup.Data("🔴 Live Mode", fmt.Sprintf("live_mode:%d:%d", targetID, keyID))
-	btnBack := markup.Data("🔙 К Target", fmt.Sprintf("view_target:%d", targetID))
+	btnBack := markup.Data("🔙 К Kafka Target", fmt.Sprintf("view_target:%d", targetID))
 
 	// Control rows
 	rows := []tele.Row{

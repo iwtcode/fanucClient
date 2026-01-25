@@ -32,9 +32,11 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 	// Регистрируем хендлеры
 	router.Register(b)
 
-	// Устанавливаем команды для меню (удалит старые ping/time)
+	// Устанавливаем команды для меню
 	err = b.SetCommands([]tele.Command{
 		{Text: "start", Description: "Главное меню"},
+		{Text: "kafka", Description: "Управление Kafka Targets"},
+		{Text: "services", Description: "Управление API Services"},
 		{Text: "profile", Description: "Профиль пользователя"},
 	})
 	if err != nil {
@@ -48,7 +50,7 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 }
 
 func (b *Bot) Start() {
-	log.Println("🤖 Bot is running...")
+	log.Println("🤖 Бот запущен...")
 	b.Bot.Start()
 }
 

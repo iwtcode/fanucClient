@@ -167,7 +167,7 @@ func (h *CallbackHandler) onListServices(c tele.Context) error {
 	services, err := h.settingsUC.GetServices(c.Sender().ID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Error fetching services: " + safeErr)
+		return c.Send("Ошибка получения списка сервисов: " + safeErr)
 	}
 
 	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите <code>API Service</code> для управления:", len(services))
@@ -197,13 +197,13 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 	safeName := html.EscapeString(s.Name)
 	safeURL := html.EscapeString(s.BaseURL)
 
-	text := fmt.Sprintf("🌐 <b>Service: %s</b>\n"+
+	text := fmt.Sprintf("🌐 <b>Сервис: %s</b>\n"+
 		"🔗 URL: <code>%s</code>\n",
 		safeName, safeURL)
 
 	if errMach != nil {
 		safeErr := html.EscapeString(errMach.Error())
-		text += fmt.Sprintf("\n⚠️ <b>API Unreachable:</b>\n%s\n", safeErr)
+		text += fmt.Sprintf("\n⚠️ <b>API Недоступен:</b>\n%s\n", safeErr)
 		// We still show the menu (empty list) so user can delete the service if needed
 		machines = []fanucService.MachineDTO{}
 	} else {
@@ -223,9 +223,9 @@ func (h *CallbackHandler) onViewService(c tele.Context, svcID uint) error {
 func (h *CallbackHandler) onDeleteService(c tele.Context, svcID uint) error {
 	err := h.settingsUC.DeleteService(c.Sender().ID, svcID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error deleting service"})
+		c.Respond(&tele.CallbackResponse{Text: "Ошибка удаления сервиса"})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Deleted!"})
+		c.Respond(&tele.CallbackResponse{Text: "Удалено!"})
 	}
 	return h.onListServices(c)
 }
@@ -238,11 +238,11 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 	machine, err := h.controlUC.GetMachine(context.Background(), svcID, machineID)
 
 	if machine == nil {
-		safeErr := "Unknown error"
+		safeErr := "Неизвестная ошибка"
 		if err != nil {
 			safeErr = err.Error()
 		}
-		c.Respond(&tele.CallbackResponse{Text: "Failed to load machine: " + safeErr})
+		c.Respond(&tele.CallbackResponse{Text: "Не удалось загрузить станок: " + safeErr})
 		// Fallback to service view
 		return h.onViewService(c, svcID)
 	}
@@ -251,19 +251,34 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 	safeModel := html.EscapeString(machine.Model)
 	safeSeries := html.EscapeString(machine.Series)
 
+	// Status Emoji
 	statusIcon := "🟢"
 	if err != nil || machine.Status != "connected" {
 		statusIcon = "🔴"
 	}
 
+	// Mode Emoji
+	modeIcon := "⏸️"
+	if machine.Mode == "polling" {
+		modeIcon = "🔄"
+	}
+
 	text := fmt.Sprintf("📟 <b>Станок: %s</b>\n"+
 		"ID: <code>%s</code>\n"+
-		"Address: <code>%s</code>\n"+
-		"Model: %s (Series: %s)\n"+
+		"Endpoint: <code>%s</code>\n"+
+		"Model: %s\n"+
+		"Series: %s\n"+
 		"Timeout: %d ms\n"+
 		"Status: %s <b>%s</b>\n"+
-		"Mode: <b>%s</b>",
-		safeModel, machine.ID, safeEP, safeModel, safeSeries, machine.Timeout, statusIcon, machine.Status, machine.Mode)
+		"Mode: %s <b>%s</b>",
+		safeModel,
+		machine.ID,
+		safeEP,
+		safeModel,
+		safeSeries,
+		machine.Timeout,
+		statusIcon, machine.Status,
+		modeIcon, machine.Mode)
 
 	if machine.Mode == "polling" {
 		text += fmt.Sprintf("\nPolling Interval: %d ms", machine.Interval)
@@ -271,7 +286,7 @@ func (h *CallbackHandler) onViewMachine(c tele.Context, svcID uint, machineID st
 
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		text += fmt.Sprintf("\n\n⚠️ <b>Warning:</b>\n%s", safeErr)
+		text += fmt.Sprintf("\n\n⚠️ <b>Внимание:</b>\n%s", safeErr)
 	}
 
 	markup := h.menu.BuildMachineView(svcID, *machine)
@@ -294,9 +309,9 @@ func (h *CallbackHandler) onDeleteConnection(c tele.Context, svcID uint, machine
 	c.Notify(tele.Typing)
 	err := h.controlUC.DeleteMachine(context.Background(), svcID, machineID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error: " + err.Error()})
+		c.Respond(&tele.CallbackResponse{Text: "Ошибка: " + err.Error()})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Connection deleted"})
+		c.Respond(&tele.CallbackResponse{Text: "Подключение удалено"})
 	}
 	// Return to service view (machine list)
 	return h.onViewService(c, svcID)
@@ -315,9 +330,9 @@ func (h *CallbackHandler) onStopPoll(c tele.Context, svcID uint, machineID strin
 	c.Notify(tele.Typing)
 	err := h.controlUC.StopPolling(context.Background(), svcID, machineID)
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error stopping polling: " + err.Error()})
+		c.Respond(&tele.CallbackResponse{Text: "Ошибка остановки опроса: " + err.Error()})
 	} else {
-		c.Respond(&tele.CallbackResponse{Text: "Polling stopped"})
+		c.Respond(&tele.CallbackResponse{Text: "Опрос остановлен"})
 	}
 	return h.onViewMachine(c, svcID, machineID)
 }
@@ -327,27 +342,27 @@ func (h *CallbackHandler) onGetProgram(c tele.Context, svcID uint, machineID str
 	prog, err := h.controlUC.GetProgram(context.Background(), svcID, machineID)
 
 	if err != nil {
-		c.Respond(&tele.CallbackResponse{Text: "Error getting program"})
+		c.Respond(&tele.CallbackResponse{Text: "Ошибка получения программы"})
 		safeErr := html.EscapeString(err.Error())
 		backMarkup := &tele.ReplyMarkup{}
 		// Back leads to machine view
-		backMarkup.Inline(backMarkup.Row(backMarkup.Data("🔙 Back", fmt.Sprintf("vm:%d:%s", svcID, machineID))))
+		backMarkup.Inline(backMarkup.Row(backMarkup.Data("🔙 Назад", fmt.Sprintf("vm:%d:%s", svcID, machineID))))
 
 		if c.Callback() != nil {
-			return c.Edit(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
+			return c.Edit(fmt.Sprintf("❌ Ошибка:\n%s", safeErr), backMarkup)
 		}
-		return c.Send(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
+		return c.Send(fmt.Sprintf("❌ Ошибка:\n%s", safeErr), backMarkup)
 	}
 
 	doc := &tele.Document{
 		File:     tele.FromReader(strings.NewReader(prog)),
 		FileName: "GCODE.NC",
-		Caption:  fmt.Sprintf("📄 Control program\nID: <code>%s</code> ", machineID),
+		Caption:  fmt.Sprintf("📄 Управляющая программа\nID: <code>%s</code> ", machineID),
 		MIME:     "text/plain",
 	}
 
 	if err := c.Send(doc); err != nil {
-		return c.Edit("❌ Failed to send file: " + err.Error())
+		return c.Edit("❌ Не удалось отправить файл: " + err.Error())
 	}
 
 	return h.onViewMachine(c, svcID, machineID)
@@ -369,7 +384,7 @@ func (h *CallbackHandler) onListTargets(c tele.Context) error {
 	targets, err := h.settingsUC.GetTargets(c.Sender().ID)
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Send("Error fetching targets: " + safeErr)
+		return c.Send("Ошибка получения списка targets: " + safeErr)
 	}
 	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>\n\nВыберите <code>Kafka Target</code> для управления:", len(targets))
 	markup := h.menu.BuildTargetsList(targets)
@@ -405,7 +420,7 @@ func (h *CallbackHandler) onViewTarget(c tele.Context, targetID uint) error {
 
 func (h *CallbackHandler) onDeleteTarget(c tele.Context, targetID uint) error {
 	h.settingsUC.DeleteTarget(c.Sender().ID, targetID)
-	c.Respond(&tele.CallbackResponse{Text: "Target deleted"})
+	c.Respond(&tele.CallbackResponse{Text: "Target удален"})
 	return h.onListTargets(c)
 }
 
@@ -415,7 +430,7 @@ func (h *CallbackHandler) onAddKeyStart(c tele.Context, targetID uint) error {
 	h.settingsUC.SetState(c.Sender().ID, entities.StateWaitingNewKey)
 	h.settingsUC.SetContextTargetID(c.Sender().ID, targetID)
 
-	return c.Edit("🔑 <b>Добавление ключа</b>\n\nВведите строку ключа (фильтр):", h.menu.BuildCancel())
+	return c.Edit("🔑 <b>Добавление ключа</b>\n\nВведите ключ (фильтр):", h.menu.BuildCancel())
 }
 
 func (h *CallbackHandler) onViewKey(c tele.Context, targetID, keyID uint) error {
@@ -425,14 +440,14 @@ func (h *CallbackHandler) onViewKey(c tele.Context, targetID, keyID uint) error 
 
 	if keyID == 0 {
 		// Virtual Default Key
-		text = "📂 <b>Default View</b>\n(Без фильтрации по ключу)"
+		text = "📂 <b>Просмотр по умолчанию</b>\n(Без фильтрации по ключу)"
 	} else {
 		// Real Key from DB
 		key, err := h.settingsUC.GetKeyByID(keyID)
 		if err != nil {
 			return h.onViewTarget(c, targetID)
 		}
-		text = fmt.Sprintf("🔑 <b>Key</b>: <code>%s</code>", html.EscapeString(key.Key))
+		text = fmt.Sprintf("🔑 <b>Ключ</b>: <code>%s</code>", html.EscapeString(key.Key))
 	}
 
 	markup := h.menu.BuildKeyView(targetID, keyID)
@@ -445,7 +460,7 @@ func (h *CallbackHandler) onViewKey(c tele.Context, targetID, keyID uint) error 
 
 func (h *CallbackHandler) onDeleteKey(c tele.Context, targetID, keyID uint) error {
 	h.settingsUC.DeleteKey(keyID)
-	c.Respond(&tele.CallbackResponse{Text: "Key deleted"})
+	c.Respond(&tele.CallbackResponse{Text: "Ключ удален"})
 	return h.onViewTarget(c, targetID)
 }
 
@@ -458,21 +473,21 @@ func (h *CallbackHandler) onCheckMessage(c tele.Context, targetID, keyID uint) e
 
 	if err != nil {
 		safeErr := html.EscapeString(err.Error())
-		return c.Edit(fmt.Sprintf("❌ Error:\n%s", safeErr), backMarkup)
+		return c.Edit(fmt.Sprintf("❌ Ошибка:\n%s", safeErr), backMarkup)
 	}
 
 	prettyMsg := prettyPrintJSON(msgRaw)
 	if len(prettyMsg) > 3800 {
-		prettyMsg = prettyMsg[:3800] + "\n...[truncated]"
+		prettyMsg = prettyMsg[:3800] + "\n...[обрезано]"
 	}
 	safeMsg := html.EscapeString(prettyMsg)
 
 	// Format text
 	var textBuilder strings.Builder
 	if foundKey != "" {
-		textBuilder.WriteString(fmt.Sprintf("🔑 Key: <code>%s</code>\n", html.EscapeString(foundKey)))
+		textBuilder.WriteString(fmt.Sprintf("🔑 Ключ: <code>%s</code>\n", html.EscapeString(foundKey)))
 	}
-	textBuilder.WriteString(fmt.Sprintf("📨 Result:\n<pre>%s</pre>", safeMsg))
+	textBuilder.WriteString(fmt.Sprintf("📨 Результат:\n<pre>%s</pre>", safeMsg))
 
 	return c.Edit(textBuilder.String(), backMarkup)
 }
@@ -500,7 +515,7 @@ func (h *CallbackHandler) onLiveModeStart(c tele.Context, targetID, keyID uint) 
 		title += " [Default]"
 	}
 
-	initialText := fmt.Sprintf("🔴 <b>%s</b>\n⏳ Connecting...", title)
+	initialText := fmt.Sprintf("🔴 <b>%s</b>\n⏳ Подключение...", title)
 	c.Edit(initialText, h.menu.BuildLiveView(targetID, keyID))
 	go h.runLiveUpdateLoop(ctx, c, targetID, keyID, title)
 	return nil
@@ -527,7 +542,7 @@ func (h *CallbackHandler) runLiveUpdateLoop(ctx context.Context, c tele.Context,
 
 		timestamp := time.Now().Format("15:04:05")
 		var textBuilder strings.Builder
-		textBuilder.WriteString(fmt.Sprintf("🔴 <b>%s</b>\nUpdated: %s\n", title, timestamp))
+		textBuilder.WriteString(fmt.Sprintf("🔴 <b>%s</b>\nОбновлено: %s\n", title, timestamp))
 
 		if err != nil {
 			safeErr := html.EscapeString(err.Error())

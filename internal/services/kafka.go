@@ -17,7 +17,7 @@ func NewKafkaService() interfaces.KafkaReader {
 
 func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFilter string) (string, string, error) {
 	if broker == "" || topic == "" {
-		return "", "", fmt.Errorf("broker or topic is empty")
+		return "", "", fmt.Errorf("broker или topic пусты")
 	}
 
 	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -37,7 +37,7 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFil
 	}
 
 	if lastOffset == 0 {
-		return "", "⚠️ Topic is empty", nil
+		return "", "⚠️ Топик пуст", nil
 	}
 
 	// 3. Determine scan range
@@ -92,9 +92,9 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFil
 
 	if foundMsg == nil {
 		if keyFilter != "" {
-			return "", fmt.Sprintf("⚠️ Message with key '%s' not found in last %d messages", keyFilter, scanDepth), nil
+			return "", fmt.Sprintf("⚠️ Сообщение с ключом '%s' не найдено в последних %d записях", keyFilter, scanDepth), nil
 		}
-		return "", "⚠️ Could not read message", nil
+		return "", "⚠️ Не удалось прочитать сообщение", nil
 	}
 
 	return string(foundMsg.Key), string(foundMsg.Value), nil

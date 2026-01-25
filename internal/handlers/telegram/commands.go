@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"html"
 	"strconv"
 	"strings"
 
@@ -51,9 +52,9 @@ func (h *CommandHandler) OnStart(c tele.Context) error {
 func (h *CommandHandler) OnWho(c tele.Context) error {
 	u, err := h.settingsUC.GetUser(c.Sender().ID)
 	if err != nil {
-		return c.Send("Error getting user")
+		return c.Send("Ошибка получения пользователя")
 	}
-	text := fmt.Sprintf("👤 <b>Profile</b>\nID: <code>%d</code>\nState: <code>%s</code>", u.ID, u.State)
+	text := fmt.Sprintf("👤 <b>Профиль</b>\nID: <code>%d</code>\nСостояние: <code>%s</code>", u.ID, u.State)
 
 	targets, _ := h.settingsUC.GetTargets(u.ID)
 	services, _ := h.settingsUC.GetServices(u.ID)
@@ -67,6 +68,40 @@ func (h *CommandHandler) OnWho(c tele.Context) error {
 	return c.Send(text, h.menu.BuildWhoMenu())
 }
 
+// OnKafka обрабатывает команду /kafka из меню
+func (h *CommandHandler) OnKafka(c tele.Context) error {
+	userID := c.Sender().ID
+	h.settingsUC.SetState(userID, entities.StateIdle)
+
+	targets, err := h.settingsUC.GetTargets(userID)
+	if err != nil {
+		safeErr := html.EscapeString(err.Error())
+		return c.Send("Ошибка получения Targets: " + safeErr)
+	}
+
+	text := fmt.Sprintf("📋 <b>Kafka Targets (%d)</b>\n\nВыберите <code>Kafka Target</code> для управления:", len(targets))
+	markup := h.menu.BuildTargetsList(targets)
+
+	return c.Send(text, markup)
+}
+
+// OnServices обрабатывает команду /services из меню
+func (h *CommandHandler) OnServices(c tele.Context) error {
+	userID := c.Sender().ID
+	h.settingsUC.SetState(userID, entities.StateIdle)
+
+	services, err := h.settingsUC.GetServices(userID)
+	if err != nil {
+		safeErr := html.EscapeString(err.Error())
+		return c.Send("Ошибка получения сервисов: " + safeErr)
+	}
+
+	text := fmt.Sprintf("🌐 <b>Ваши сервисы (%d)</b>\n\nВыберите <code>API Service</code> для управления:", len(services))
+	markup := h.menu.BuildServicesList(services)
+
+	return c.Send(text, markup)
+}
+
 func (h *CommandHandler) OnText(c tele.Context) error {
 	userID := c.Sender().ID
 	user, err := h.settingsUC.GetUser(userID)
@@ -76,21 +111,19 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 
 	input := strings.TrimSpace(c.Text())
 
-	// Menu Commands
+	// Menu Commands (Reply Keyboard)
 	switch input {
 	case h.menu.BtnHome.Text:
 		return h.OnStart(c)
 	case h.menu.BtnWho.Text:
 		return h.OnWho(c)
 	case h.menu.BtnTargets.Text:
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
-		return cb.onListTargets(c)
+		return h.OnKafka(c)
 	case h.menu.BtnServices.Text:
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
-		return cb.onListServices(c)
+		return h.OnServices(c)
 	}
 
-	// FSM
+	// FSM Processing
 	switch user.State {
 	// --- Kafka Wizard ---
 	case entities.StateWaitingName:
@@ -100,21 +133,18 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		h.settingsUC.SetDraftBroker(userID, input)
 		return c.Send("📂 <b>Шаг 3/3: Topic</b>", h.menu.BuildCancel())
 	case entities.StateWaitingTopic:
-		// Save immediately, no key step
 		h.settingsUC.SetDraftTopicAndSave(userID, input)
-		c.Send("✅ Kafka Target Saved!")
-
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
-		return cb.onListTargets(c)
+		c.Send("✅ Kafka Target сохранен!")
+		return h.OnKafka(c)
 
 	// --- Adding Key to existing Target ---
 	case entities.StateWaitingNewKey:
 		h.settingsUC.AddKeyToTarget(userID, input)
-		c.Send("✅ Key Added!")
+		c.Send("✅ Ключ добавлен!")
 
-		// Redirect back to target view
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
-		return cb.onViewTarget(c, user.ContextTargetID)
+		// Для редиректа на просмотр таргета нам нужен CallbackHandler.
+		// Так как здесь мы в CommandHandler, мы просто вернем список таргетов.
+		return h.OnKafka(c)
 
 	// --- Service Registration Wizard ---
 	case entities.StateWaitingSvcName:
@@ -125,15 +155,13 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 		return c.Send("🔐 <b>Шаг 3/3: API Key</b>\nВведите ключ доступа к сервису:", h.menu.BuildCancel())
 	case entities.StateWaitingSvcKey:
 		h.settingsUC.SetDraftSvcKeyAndSave(userID, input)
-		c.Send("✅ Service Saved!")
-
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC}
-		return cb.onListServices(c)
+		c.Send("✅ Сервис сохранен!")
+		return h.OnServices(c)
 
 	// --- Machine Connection Wizard (Remote API) ---
 	case entities.StateWaitingConnEndpoint:
 		h.settingsUC.SetDraftConnEndpoint(userID, input)
-		return c.Send("⏱ <b>Шаг 2/4: Timeout (ms)</b>\nВведите таймаут соединения (например 5000).\nОтправьте '0' или '-' для значения по умолчанию (5000ms).", h.menu.BuildCancel())
+		return c.Send("⏱ <b>Шаг 2/4: Таймаут (мс)</b>\nВведите таймаут соединения (например 5000).\nОтправьте '0' или '-' для значения по умолчанию (5000ms).", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnTimeout:
 		timeout := 5000
@@ -145,7 +173,7 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 			timeout = val
 		}
 		h.settingsUC.SetDraftConnTimeout(userID, timeout)
-		return c.Send("🤖 <b>Шаг 3/4: Model</b>\nВведите название модели.\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
+		return c.Send("🤖 <b>Шаг 3/4: Модель</b>\nВведите название модели.\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnModel:
 		model := input
@@ -153,7 +181,7 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 			model = "Unknown"
 		}
 		h.settingsUC.SetDraftConnModel(userID, model)
-		return c.Send("🔢 <b>Шаг 4/4: Series</b>\nВведите серию стойки (0i, 30i, 31i).\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
+		return c.Send("🔢 <b>Шаг 4/4: Серия</b>\nВведите серию стойки (0i, 30i, 31i).\nОтправьте '0' или '-' для значения 'Unknown'.", h.menu.BuildCancel())
 
 	case entities.StateWaitingConnSeries:
 		series := input
@@ -169,41 +197,39 @@ func (h *CommandHandler) OnText(c tele.Context) error {
 			Series:   series,
 		}
 
-		c.Send("⏳ Creating connection on remote service...")
+		c.Send("⏳ Создание подключения на удаленном сервисе...")
 
 		_, err := h.controlUC.CreateMachine(context.Background(), svcID, req)
 		if err != nil {
-			c.Send(fmt.Sprintf("❌ Error creating connection: %v", err))
+			c.Send(fmt.Sprintf("❌ Ошибка создания подключения: %v", err))
 		} else {
-			c.Send("✅ Connection established!")
+			c.Send("✅ Подключение установлено!")
 		}
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
-		// Изменено: вызываем onViewService вместо onListServiceMachines
-		return cb.onViewService(c, svcID)
+		// Возвращаемся в список сервисов
+		return h.OnServices(c)
 
 	// --- Polling Wizard ---
 	case entities.StateWaitingPollInterval:
 		interval, err := strconv.Atoi(input)
 		if err != nil || interval < 100 {
-			return c.Send("⚠️ Please enter a valid number (min 100 ms).")
+			return c.Send("⚠️ Пожалуйста, введите корректное число (минимум 100 мс).")
 		}
 
 		svcID := user.ContextSvcID
 		machineID := user.ContextMachineID
 
-		c.Send("⏳ Starting polling...")
+		c.Send("⏳ Запуск опроса...")
 		err = h.controlUC.StartPolling(context.Background(), svcID, machineID, interval)
 		if err != nil {
-			c.Send(fmt.Sprintf("❌ Error starting polling: %v", err))
+			c.Send(fmt.Sprintf("❌ Ошибка запуска опроса: %v", err))
 		} else {
-			c.Send("✅ Polling started!")
+			c.Send("✅ Опрос запущен!")
 		}
 
 		h.settingsUC.SetState(userID, entities.StateIdle)
-		cb := &CallbackHandler{menu: h.menu, settingsUC: h.settingsUC, controlUC: h.controlUC}
-		return cb.onViewMachine(c, svcID, machineID)
+		return h.OnServices(c)
 
 	default:
 		return h.OnStart(c)
