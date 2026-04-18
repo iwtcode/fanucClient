@@ -27,6 +27,13 @@ type SettingsUsecase interface {
 	SetDraftBroker(id int64, broker string) error
 	SetDraftTopicAndSave(id int64, topic string) error
 
+	// Direct API for Web (Full CRUD)
+	CreateTargetDirect(userID int64, name, broker, topic string) error
+	UpdateTargetDirect(userID int64, targetID uint, name, broker, topic string) error
+	CreateServiceDirect(userID int64, name, host, key string) error
+	UpdateServiceDirect(userID int64, svcID uint, name, host, key string) error
+	AddKeyToTargetDirect(targetID uint, key string) error
+
 	GetTargets(userID int64) ([]entities.MonitoringTarget, error)
 	DeleteTarget(userID int64, targetID uint) error
 	GetTargetByID(targetID uint) (*entities.MonitoringTarget, error)
@@ -46,19 +53,14 @@ type SettingsUsecase interface {
 }
 
 type MonitoringUsecase interface {
-	// keyID == 0 means "no key" (default)
-	// Returns: foundKey, foundValue, error
 	FetchLastKafkaMessage(ctx context.Context, targetID uint, keyID uint) (string, string, error)
 }
 
 type ControlUsecase interface {
-	// Machine Management
 	CreateMachine(ctx context.Context, svcID uint, req fanucService.ConnectionRequest) (*fanucService.MachineDTO, error)
 	ListMachines(ctx context.Context, svcID uint) ([]fanucService.MachineDTO, error)
 	GetMachine(ctx context.Context, svcID uint, machineID string) (*fanucService.MachineDTO, error)
 	DeleteMachine(ctx context.Context, svcID uint, machineID string) error
-
-	// Actions
 	StartPolling(ctx context.Context, svcID uint, machineID string, intervalMs int) error
 	StopPolling(ctx context.Context, svcID uint, machineID string) error
 	GetProgram(ctx context.Context, svcID uint, machineID string) (string, error)

@@ -12,6 +12,7 @@ type UserRepository interface {
 
 	// Kafka Targets
 	AddTarget(target *entities.MonitoringTarget) error
+	UpdateTarget(target *entities.MonitoringTarget) error
 	DeleteTarget(targetID uint, userID int64) error
 	GetTargets(userID int64) ([]entities.MonitoringTarget, error)
 	GetTargetByID(targetID uint) (*entities.MonitoringTarget, error)
@@ -23,6 +24,7 @@ type UserRepository interface {
 
 	// Fanuc Services
 	AddService(svc *entities.FanucService) error
+	UpdateService(svc *entities.FanucService) error
 	DeleteService(svcID uint, userID int64) error
 	GetServices(userID int64) ([]entities.FanucService, error)
 	GetServiceByID(svcID uint) (*entities.FanucService, error)

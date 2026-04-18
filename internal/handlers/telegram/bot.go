@@ -15,6 +15,11 @@ type Bot struct {
 }
 
 func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
+	if cfg.TgToken == "" {
+		log.Println("⚠️ TG_TOKEN не указан, Telegram бот не будет инициализирован")
+		return &Bot{}
+	}
+
 	pref := tele.Settings{
 		Token:     cfg.TgToken,
 		Poller:    &tele.LongPoller{Timeout: 10 * time.Second},
@@ -29,10 +34,8 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 	b.Use(middleware.Recover())
 	b.Use(LogMiddleware())
 
-	// Регистрируем хендлеры
 	router.Register(b)
 
-	// Устанавливаем команды для меню
 	err = b.SetCommands([]tele.Command{
 		{Text: "start", Description: "Главное меню"},
 		{Text: "kafka", Description: "Управление Kafka Targets"},
@@ -50,10 +53,14 @@ func NewBot(cfg *fanucClient.Config, router *Router) *Bot {
 }
 
 func (b *Bot) Start() {
-	log.Println("🤖 Бот запущен...")
-	b.Bot.Start()
+	if b.Bot != nil {
+		log.Println("🤖 Бот запущен...")
+		b.Bot.Start()
+	}
 }
 
 func (b *Bot) Stop() {
-	b.Bot.Stop()
+	if b.Bot != nil {
+		b.Bot.Stop()
+	}
 }

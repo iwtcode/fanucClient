@@ -20,17 +20,17 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFil
 		return "", "", fmt.Errorf("broker или topic пусты")
 	}
 
-	dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	// 1. Connect to partition 0 leader (Assuming single partition for simplicity or 0)
+	// 1. Подключаемся к лидеру партиции 0
 	conn, err := kafka.DialLeader(dialCtx, "tcp", broker, topic, 0)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to dial leader: %w", err)
 	}
 	defer conn.Close()
 
-	// 2. Get last offset
+	// 2. Получаем High Watermark (следующий оффсет, который будет записан)
 	lastOffset, err := conn.ReadLastOffset()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read last offset: %w", err)
@@ -40,9 +40,7 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFil
 		return "", "⚠️ Топик пуст", nil
 	}
 
-	// 3. Determine scan range
-	// If key is present, we scan last 1000 messages to find it.
-	// If key is empty, we just take the last message.
+	// 3. Определяем глубину поиска
 	scanDepth := int64(1)
 	if keyFilter != "" {
 		scanDepth = 1000
@@ -57,34 +55,33 @@ func (s *kafkaService) GetLastMessage(ctx context.Context, broker, topic, keyFil
 		return "", "", fmt.Errorf("failed to seek: %w", err)
 	}
 
-	// 4. Read batch
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	batch := conn.ReadBatch(10e3, 1e6) // min 10KB, max 1MB
+	// 4. Читаем данные
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	batch := conn.ReadBatch(1, 1e6) // min 1 Byte, max 1MB
 	defer batch.Close()
 
 	var foundMsg *kafka.Message
 
-	// Scan through messages from startOffset to lastOffset
+	// Сканируем сообщения от startOffset до lastOffset
 	for {
 		m, err := batch.ReadMessage()
 		if err != nil {
-			break // Batch finished or error
+			break // Конец батча или ошибка/таймаут
 		}
 
 		if keyFilter != "" {
-			// If looking for a key, update foundMsg only if key matches
+			// Если ищем по ключу, обновляем foundMsg только при совпадении
 			if string(m.Key) == keyFilter {
-				// We create a copy because m is reused in loop
 				msgCopy := m
 				foundMsg = &msgCopy
 			}
 		} else {
-			// If no key, just take the last one seen
+			// Если без ключа, просто берем последнее увиденное
 			msgCopy := m
 			foundMsg = &msgCopy
 		}
 
-		// If we reached the end
+		// Прерываем цикл, как только прочитали самое последнее существующее сообщение (lastOffset - 1)
 		if m.Offset >= lastOffset-1 {
 			break
 		}

@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	TgToken    string
+	AppPort    string
 	DBHost     string
 	DBPort     string
 	DBUser     string
@@ -20,6 +21,7 @@ func LoadConfig() *Config {
 
 	return &Config{
 		TgToken:    os.Getenv("TG_TOKEN"),
+		AppPort:    os.Getenv("APP_PORT"),
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),
 		DBUser:     getEnv("DB_USER", "postgres"),

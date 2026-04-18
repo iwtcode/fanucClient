@@ -2,10 +2,10 @@ package app
 
 import (
 	"context"
-	"log"
 
 	"github.com/iwtcode/fanucClient"
 	"github.com/iwtcode/fanucClient/internal/handlers/telegram"
+	"github.com/iwtcode/fanucClient/internal/handlers/web"
 	"github.com/iwtcode/fanucClient/internal/repository"
 	"github.com/iwtcode/fanucClient/internal/services"
 	"github.com/iwtcode/fanucClient/internal/usecases"
@@ -33,28 +33,38 @@ func New() *fx.App {
 
 			// Telegram Components
 			telegram.NewMenu,
-			telegram.NewCommandHandler, // Внутри обновлен конструктор
+			telegram.NewCommandHandler,
 			telegram.NewCallbackHandler,
 			telegram.NewRouter,
 			telegram.NewBot,
+
+			// Web Components
+			web.NewServer,
 		),
 		fx.Invoke(
-			startBot,
+			startServices,
 		),
 	)
 }
 
-func startBot(lifecycle fx.Lifecycle, bot *telegram.Bot) {
+func startServices(lifecycle fx.Lifecycle, cfg *fanucClient.Config, bot *telegram.Bot, webSrv *web.Server) {
 	lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			go func() {
-				log.Println("🔥 Бот запускается...")
-				bot.Start()
-			}()
+			if cfg.TgToken != "" && bot.Bot != nil {
+				go bot.Start()
+			}
+			if cfg.AppPort != "" {
+				go webSrv.Start(cfg.AppPort)
+			}
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			bot.Stop()
+			if cfg.TgToken != "" && bot.Bot != nil {
+				bot.Stop()
+			}
+			if cfg.AppPort != "" {
+				webSrv.Stop(ctx)
+			}
 			return nil
 		},
 	})

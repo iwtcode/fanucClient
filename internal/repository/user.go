@@ -26,7 +26,6 @@ func (r *userRepository) Save(user *entities.User) error {
 
 func (r *userRepository) GetByID(id int64) (*entities.User, error) {
 	var user entities.User
-	// Подгружаем и таргеты (без ключей для списка юзера не обязательно, но можно), и сервисы
 	err := r.db.Preload("Targets").Preload("Services").First(&user, "id = ?", id).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -51,20 +50,22 @@ func (r *userRepository) AddTarget(target *entities.MonitoringTarget) error {
 	return r.db.Create(target).Error
 }
 
+func (r *userRepository) UpdateTarget(target *entities.MonitoringTarget) error {
+	return r.db.Save(target).Error
+}
+
 func (r *userRepository) DeleteTarget(targetID uint, userID int64) error {
 	return r.db.Delete(&entities.MonitoringTarget{}, "id = ? AND user_id = ?", targetID, userID).Error
 }
 
 func (r *userRepository) GetTargets(userID int64) ([]entities.MonitoringTarget, error) {
 	var targets []entities.MonitoringTarget
-	// В списке таргетов ключи пока не нужны, загрузим их при детальном просмотре
 	err := r.db.Where("user_id = ?", userID).Find(&targets).Error
 	return targets, err
 }
 
 func (r *userRepository) GetTargetByID(targetID uint) (*entities.MonitoringTarget, error) {
 	var t entities.MonitoringTarget
-	// Здесь важно загрузить Keys
 	err := r.db.Preload("Keys").First(&t, "id = ?", targetID).Error
 	if err != nil {
 		return nil, err
@@ -95,6 +96,10 @@ func (r *userRepository) GetKeyByID(keyID uint) (*entities.MonitoringKey, error)
 
 func (r *userRepository) AddService(svc *entities.FanucService) error {
 	return r.db.Create(svc).Error
+}
+
+func (r *userRepository) UpdateService(svc *entities.FanucService) error {
+	return r.db.Save(svc).Error
 }
 
 func (r *userRepository) DeleteService(svcID uint, userID int64) error {

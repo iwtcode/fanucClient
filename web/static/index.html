@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FANUC Client</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="bg-shape shape1"></div>
+    <div class="bg-shape shape2"></div>
+
+    <div class="app-container glass">
+        <header>
+            <button id="back-btn" class="icon-btn hidden" onclick="goBack()"><i class="fas fa-chevron-left"></i></button>
+            <h1 id="view-title">FANUC Client</h1>
+            <div style="width: 32px;"></div>
+        </header>
+
+        <main id="content">
+            <!-- View: Home -->
+            <div id="view-home" class="view active">
+                <div class="stats glass-card">
+                    <div class="stat-item">
+                        <i class="fas fa-network-wired text-yellow"></i>
+                        <span id="stat-targets">0</span>
+                        <small>Kafka Targets</small>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-server text-yellow"></i>
+                        <span id="stat-services">0</span>
+                        <small>API Services</small>
+                    </div>
+                </div>
+                <div class="menu-list">
+                    <button class="menu-btn glass-btn" onclick="navTo('targets')">
+                        <i class="fas fa-list-ul"></i> Управление Kafka Targets
+                    </button>
+                    <button class="menu-btn glass-btn" onclick="navTo('services')">
+                        <i class="fas fa-globe"></i> Управление API Services
+                    </button>
+                </div>
+            </div>
+
+            <!-- View: Targets List -->
+            <div id="view-targets" class="view">
+                <div id="targets-list" class="list-container mb-4"></div>
+                <button class="btn-primary" onclick="openTargetForm(false)"><i class="fas fa-plus"></i> Добавить Target</button>
+            </div>
+
+            <!-- View: Target Form (Add/Edit) -->
+            <div id="view-target-form" class="view">
+                <h3 id="target-form-title">Добавить Target</h3>
+                <form class="glass-form" onsubmit="saveTarget(event)">
+                    <label>Название</label>
+                    <input type="text" id="target-name" required placeholder="Например: Цех 1">
+                    <label>Broker (IP:PORT)</label>
+                    <input type="text" id="target-broker" required placeholder="localhost:9092">
+                    <label>Topic</label>
+                    <input type="text" id="target-topic" required placeholder="fanuc_data">
+                    <button type="submit" class="btn-primary">Сохранить</button>
+                </form>
+            </div>
+
+            <!-- View: Target Details -->
+            <div id="view-target-detail" class="view">
+                <div class="glass-card mb-4" id="target-info"></div>
+                <div class="action-row mb-4">
+                    <button class="btn-secondary" onclick="openTargetForm(true)"><i class="fas fa-pen"></i> Изменить</button>
+                    <button class="btn-danger" onclick="deleteTarget()"><i class="fas fa-trash"></i> Удалить</button>
+                </div>
+                
+                <h3>Ключи мониторинга</h3>
+                <div id="keys-list" class="list-container mb-4"></div>
+                <button class="btn-primary mb-2" onclick="navTo('key-add')"><i class="fas fa-key"></i> Добавить ключ</button>
+            </div>
+
+            <!-- View: Add Key -->
+            <div id="view-key-add" class="view">
+                <h3>Добавить ключ</h3>
+                <form class="glass-form" onsubmit="createKey(event)">
+                    <label>Ключ фильтрации</label>
+                    <input type="text" id="key-value" required placeholder="Имя ключа">
+                    <button type="submit" class="btn-primary">Добавить</button>
+                </form>
+            </div>
+
+            <!-- View: Key Menu -->
+            <div id="view-key-detail" class="view">
+                <div class="glass-card mb-4 text-center">
+                    <h2 id="live-key-name" class="text-yellow"></h2>
+                </div>
+                <div class="menu-list mb-4">
+                    <button class="menu-btn glass-btn" onclick="openLiveConsole(false)"><i class="fas fa-envelope"></i> Последнее сообщение</button>
+                    <button class="menu-btn glass-btn text-yellow border-yellow" onclick="openLiveConsole(true)"><i class="fas fa-circle"></i> Режим Live Mode</button>
+                    <button class="btn-danger" id="btn-delete-key" onclick="deleteKey()"><i class="fas fa-trash"></i> Удалить ключ</button>
+                </div>
+            </div>
+
+            <!-- View: Live Console (Отдельный экран внутри SPA) -->
+            <div id="view-live-console" class="view">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 id="console-title" style="margin:0; border:none;">LIVE</h3>
+                    <small id="console-status" class="text-muted"><i class="fas fa-circle"></i> Запрос...</small>
+                </div>
+                <pre id="live-console-display" class="glass-console"></pre>
+            </div>
+
+            <!-- View: Services List -->
+            <div id="view-services" class="view">
+                <div id="services-list" class="list-container mb-4"></div>
+                <button class="btn-primary" onclick="openServiceForm(false)"><i class="fas fa-plus"></i> Добавить Service</button>
+            </div>
+
+            <!-- View: Service Form (Add/Edit) -->
+            <div id="view-service-form" class="view">
+                <h3 id="service-form-title">Добавить Service</h3>
+                <form class="glass-form" onsubmit="saveService(event)">
+                    <label>Название</label>
+                    <input type="text" id="svc-name" required placeholder="Основной сервер">
+                    <label>Base URL</label>
+                    <input type="text" id="svc-url" required placeholder="http://192.168.1.10:8080">
+                    <label>API Key</label>
+                    <input type="text" id="svc-key" required placeholder="secret">
+                    <button type="submit" class="btn-primary">Сохранить</button>
+                </form>
+            </div>
+
+            <!-- View: Service Details -->
+            <div id="view-service-detail" class="view">
+                <div class="glass-card mb-4" id="service-info"></div>
+                <div class="action-row mb-4">
+                    <button class="btn-secondary" onclick="openServiceForm(true)"><i class="fas fa-pen"></i> Изменить</button>
+                    <button class="btn-danger" onclick="deleteService()"><i class="fas fa-trash"></i> Удалить</button>
+                </div>
+
+                <h3>Подключенные станки</h3>
+                <div id="machines-list" class="list-container mb-4"></div>
+                <button class="btn-primary mb-2" onclick="navTo('machine-add')"><i class="fas fa-plug"></i> Подключить станок</button>
+            </div>
+
+            <!-- View: Add Machine -->
+            <div id="view-machine-add" class="view">
+                <h3>Подключение станка к сервису</h3>
+                <form class="glass-form" onsubmit="createMachine(event)">
+                    <label>Endpoint (IP:PORT)</label>
+                    <input type="text" id="mach-endpoint" required placeholder="192.168.1.10:8193">
+                    <label>Timeout (ms)</label>
+                    <input type="number" id="mach-timeout" value="5000" required>
+                    <label>Model</label>
+                    <input type="text" id="mach-model" value="Unknown" required>
+                    <label>Series</label>
+                    <input type="text" id="mach-series" value="Unknown" required>
+                    <button type="submit" class="btn-primary">Подключить</button>
+                </form>
+            </div>
+
+            <!-- View: Machine Details -->
+            <div id="view-machine-detail" class="view">
+                <div class="glass-card mb-4" id="machine-info"></div>
+                <div class="menu-list">
+                    <button class="menu-btn glass-btn" id="btn-poll-toggle" onclick="togglePoll()"></button>
+                    <button class="menu-btn glass-btn" id="btn-gcode" onclick="downloadProgram()"><i class="fas fa-file-code"></i> Запросить G-CODE</button>
+                    <pre id="gcode-display" class="glass-console hidden mt-2"></pre>
+                    <button class="btn-danger" onclick="deleteMachine()"><i class="fas fa-trash"></i> Удалить подключение</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal for Prompts -->
+    <div id="modal" class="modal-overlay hidden">
+        <div class="modal-content glass-card">
+            <h3 id="modal-title"></h3>
+            <input type="number" id="modal-input" class="mb-4" style="width: 100%; display:none;">
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-primary flex-1" id="modal-confirm">ОК</button>
+                <button class="btn-secondary flex-1" onclick="closeModal()">Отмена</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
