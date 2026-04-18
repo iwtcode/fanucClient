@@ -130,3 +130,95 @@ main { padding: 20px; flex: 1; overflow-y: auto; }
     display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .modal-content { width: 100%; max-width: 400px; }
+
+/* Toast Notifications */
+#toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    width: 320px;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+    animation: slideIn 0.3s ease-out forwards;
+    overflow: hidden;
+}
+
+.toast-emergency { border-left: 4px solid #ff4757; }
+.toast-alarm { border-left: 4px solid var(--fanuc-yellow); }
+.toast-resolved { border-left: 4px solid #2ed573; }
+
+.toast-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.toast-header strong {
+    flex: 1;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+
+.toast-emergency .toast-header i { color: #ff4757; }
+.toast-alarm .toast-header i { color: var(--fanuc-yellow); }
+.toast-resolved .toast-header i { color: #2ed573; }
+
+.toast-header button {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: 0.2s;
+}
+
+.toast-header button:hover {
+    color: var(--text-main);
+}
+
+.toast-body {
+    padding: 12px 15px;
+    font-size: 0.85rem;
+    color: #dcdde1;
+    line-height: 1.4;
+}
+
+.toast-alarms {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px 15px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.toast-alarms ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.toast-alarms li {
+    font-size: 0.8rem;
+    color: #c8d6e5;
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}

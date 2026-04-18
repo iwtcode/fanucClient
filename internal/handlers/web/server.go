@@ -17,6 +17,7 @@ type Server struct {
 	settingsUC interfaces.SettingsUsecase
 	monitorUC  interfaces.MonitoringUsecase
 	controlUC  interfaces.ControlUsecase
+	sseBroker  *SSEBroker
 }
 
 func NewServer(sUC interfaces.SettingsUsecase, mUC interfaces.MonitoringUsecase, cUC interfaces.ControlUsecase) *Server {
@@ -25,9 +26,15 @@ func NewServer(sUC interfaces.SettingsUsecase, mUC interfaces.MonitoringUsecase,
 		settingsUC: sUC,
 		monitorUC:  mUC,
 		controlUC:  cUC,
+		sseBroker:  NewSSEBroker(),
 	}
 	s.RegisterRoutes()
 	return s
+}
+
+// BroadcastToUser реализация интерфейса WebSender для Notifier Service
+func (s *Server) BroadcastToUser(userID int64, eventType string, data []byte) {
+	s.sseBroker.BroadcastToUser(userID, eventType, data)
 }
 
 func (s *Server) Start(port string) {
@@ -47,6 +54,7 @@ func (s *Server) Stop(ctx context.Context) {
 	}
 }
 
+// ... остальной код серверных обработчиков (handleProfile, handleGetTargets и т.д.) остается БЕЗ ИЗМЕНЕНИЙ ...
 func (s *Server) handleProfile(w http.ResponseWriter, r *http.Request) {
 	userID := getUserID(r)
 	targets, _ := s.settingsUC.GetTargets(userID)

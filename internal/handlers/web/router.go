@@ -14,6 +14,9 @@ func (s *Server) RegisterRoutes() {
 	// Profile
 	s.mux.HandleFunc("GET /api/profile", auth(s.handleProfile))
 
+	// Notifications Stream (SSE)
+	s.mux.HandleFunc("GET /api/notifications/stream", auth(s.sseBroker.HandleStream))
+
 	// Targets
 	s.mux.HandleFunc("GET /api/targets", auth(s.handleGetTargets))
 	s.mux.HandleFunc("POST /api/targets", auth(s.handleCreateTarget))

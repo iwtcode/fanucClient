@@ -64,3 +64,16 @@ func (b *Bot) Stop() {
 		b.Bot.Stop()
 	}
 }
+
+// SendAlert реализация интерфейса TelegramSender
+func (b *Bot) SendAlert(userID int64, text string) error {
+	if b.Bot == nil {
+		return nil // Бот отключен
+	}
+	user := &tele.User{ID: userID}
+	_, err := b.Bot.Send(user, text, tele.ModeHTML)
+	if err != nil {
+		log.Printf("❌ Ошибка отправки алерта пользователю %d: %v", userID, err)
+	}
+	return err
+}

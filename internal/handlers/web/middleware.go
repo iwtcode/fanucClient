@@ -13,7 +13,12 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		userIDStr := r.Header.Get("X-User-Id")
 		if userIDStr == "" {
-			respondError(w, http.StatusUnauthorized, "Missing X-User-Id header")
+			// Читаем из query-параметра (для поддержки EventSource/SSE)
+			userIDStr = r.URL.Query().Get("uid")
+		}
+
+		if userIDStr == "" {
+			respondError(w, http.StatusUnauthorized, "Missing X-User-Id header or uid query param")
 			return
 		}
 

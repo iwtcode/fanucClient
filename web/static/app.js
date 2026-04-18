@@ -2,6 +2,7 @@ const API_BASE = '/api';
 let historyStack = [];
 let context = {};
 let liveInterval = null;
+let eventSource = null;
 
 // Генерируем и сохраняем Web User ID (отрицательное число)
 function getWebUserID() {
@@ -11,6 +12,73 @@ function getWebUserID() {
         localStorage.setItem('web_user_id', uid);
     }
     return uid;
+}
+
+// Инициализация SSE (Server-Sent Events) для получения алертов
+function initSSE() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    // Передаем X-User-Id в заголовке нельзя напрямую через EventSource API браузера.
+    // Поэтому в случае Vanilla JS и EventSource мы можем использовать куки или пробросить как query параметр.
+    // Для нашего сервера (middleware authMiddleware) мы можем временно пропатчить его на чтение параметра (или использовать заголовки через fetch, но SSE не поддерживает заголовки).
+    // Важно: чтобы Auth работал для SSE, нужно либо передавать userID в URL:
+    eventSource = new EventSource(`${API_BASE}/notifications/stream?uid=${getWebUserID()}`);
+
+    eventSource.addEventListener('alert', function(e) {
+        try {
+            const data = JSON.parse(e.data);
+            showToast(data);
+        } catch (err) {
+            console.error("Ошибка парсинга SSE алерта", err);
+        }
+    });
+
+    eventSource.onerror = function() {
+        console.warn("SSE соединение разорвано. Попытка переподключения...");
+    };
+}
+
+// Функция показа всплывающих уведомлений (Toast)
+function showToast(data) {
+    const toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${data.type}`; // 'alarm', 'emergency', 'resolved'
+    
+    let icon = 'fa-info-circle';
+    if (data.type === 'emergency') icon = 'fa-exclamation-triangle';
+    if (data.type === 'alarm') icon = 'fa-bell';
+    if (data.type === 'resolved') icon = 'fa-check-circle';
+
+    let html = `
+        <div class="toast-header">
+            <i class="fas ${icon}"></i> 
+            <strong>${data.machine_id}</strong>
+            <button onclick="this.parentElement.parentElement.remove()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="toast-body">
+            ${data.message}
+        </div>
+    `;
+
+    if (data.alarms && data.alarms.length > 0) {
+        html += `<div class="toast-alarms"><ul>`;
+        data.alarms.forEach(a => {
+            html += `<li>[${a.error_code}] <b>${a.error_type_description}</b>: ${a.error_message}</li>`;
+        });
+        html += `</ul></div>`;
+    }
+
+    toast.innerHTML = html;
+    toastContainer.appendChild(toast);
+
+    // Удаляем автоматически через 10 секунд
+    setTimeout(() => {
+        if(toast.parentElement) toast.remove();
+    }, 10000);
 }
 
 // Универсальный обработчик запросов к API
@@ -394,4 +462,7 @@ function openModal(title, showInput, onConfirm) {
 }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
-window.onload = () => navTo('home');
+window.onload = () => {
+    initSSE();
+    navTo('home');
+};
